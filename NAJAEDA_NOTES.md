@@ -19,9 +19,14 @@ use case.
    by dumping annotated Verilog at index time and parsing the attributes back
    (`src/naja_scope/source_index.py`). A `get_rtl_info()` /
    `get_attributes()`-visible form on SNL objects removes the dump+parse.
+   See [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling)
+   for how to structure this so it is also cheap and serializable.
 2. **`sv_symbol_path` RTL info** (slang hierarchical path) stamped at lowering
    time alongside `sv_src_*` — the persistent join key phase 2 needs to
    re-bind a live slang AST to a snapshot-loaded SNL (DESIGN.md prep hook 1).
+   The path is *already computed* during lowering for naming
+   (`SNLSVConstructor.cpp:15636`, `symbol.getHierarchicalPath()`); the ask is
+   to intern and keep it. See [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling).
 3. **Stable names for lowered objects at construction time** — primitive
    instances created by sequential/comb lowering are unnamed; the dumper
    invents `instance_N` names. naja-scope names them post-load
@@ -66,6 +71,117 @@ use case.
    stdio JSON-RPC transports. naja-scope reroutes fd 1 to stderr in
    `server.main()`. A way to direct naja logs to stderr (or a Python logging
    bridge) would help every embedder.
+
+## Design proposal: RTLInfos structuring + SNL↔slang coupling
+
+Forward-looking; grounded in the naja C++ checkout at `/Users/xtof/WORK/naja2`
+(read 2026-06-13). This expands feature requests 1–2 from "expose it" into
+"expose it in a shape that is cheap at MegaBoom scale and ready for the
+phase-2 living AST." File:line references are into that checkout.
+
+### What exists today
+
+Two parallel per-object metadata systems hang off `SNLDesignObject` /
+`SNLDesign`, and source info is in the weaker one:
+
+| | `SNLRTLInfos` (holds `sv_src_*`) | `SNLAttributes` |
+|---|---|---|
+| Storage | `std::map<NLName,std::string>` behind a raw owning `rtlInfos_` pointer (`SNLRTLInfos.h:27`, `SNLDesignObject.h:80`) | `NajaPrivateProperty` with typed `NUMBER`/`STRING` values (`SNLAttributes.h`) |
+| Python | **not bound** | bound (`getAttributes`/`addAttribute`) |
+| naja-if snapshot | **not serialized** | **also not serialized** — it is a `NajaPrivateProperty`, and capnp only dumps `getDumpableProperties()` → `NajaDumpableProperty*` (`SNLCapnPInterface.cpp:43,62`; `NajaObject.h:50`) |
+| Clone | full `std::map` copy per uniquification (`SNLRTLInfos::cloneInfos`, called at `SNLSVConstructor.cpp:3221`) | `cloneAttributes` |
+
+Per annotated object, `annotateSourceInfo` (`SNLSVConstructor.cpp:3245-3264`)
+stores **five** map entries — `sv_src_file`, `sv_src_line`, `sv_src_column`,
+`sv_src_end_line`, `sv_src_end_column`. So each object carries: 1 heap
+`SNLRTLInfos` + 1 `std::map` + 5 RB-tree nodes + 5 `std::string` values.
+Costs that matter at scale:
+
+- **Integers stored as decimal text.** `line`/`column` go through
+  `std::to_string` (`:3256-3263`) and naja-scope parses them straight back to
+  `int`. Pure round-trip waste.
+- **The filename is a full `std::string` on every object.** `NLName` interns
+  the *key* `sv_src_file`, never the *value* — `"counter.sv"` is duplicated
+  once per object in the file.
+- **`cloneRTLInfos` deep-copies the map at every uniquification clone.** The
+  perf report already counts `rtlInfoClonedEntries` and
+  `cloneRTLInfosDuration` (`:3229-3232`), and DESIGN.md flags uniquification
+  as exactly where naive maps break.
+- **Neither bound nor serialized is the whole reason
+  `src/naja_scope/source_index.py` exists** — the dump-Verilog-and-reparse
+  bridge is a pure workaround for these two egress gaps.
+
+### Proposal A — restructure RTLInfos (cheapest first)
+
+A source range is a fixed-schema record, not open-ended metadata; it is being
+shoehorned into a string map.
+
+- **Level 0 — egress only (unblocks naja-scope now, no restructure).** Bind
+  `getRTLInfos()` to PyNaja and serialize it to capnp. Alone this deletes
+  `source_index.py` and fixes the phase-2 cold-start tier.
+- **Level 1 — typed slot + interned file (recommended).**
+  ```cpp
+  struct SNLSourceLoc {            // 16 bytes, POD, trivially copyable
+    uint32_t fileId;              // index into a per-DB file table
+    uint32_t line, endLine;
+    uint16_t column, endColumn;
+  };
+  class SNLRTLInfos {
+    std::optional<SNLSourceLoc> sourceLoc_;   // the common case
+    uint32_t symbolPathId_ {kInvalid};        // Proposal B, tier 1
+    std::unique_ptr<Infos> extra_;            // nullptr unless rare k/v used
+  };
+  ```
+  File names live in one `std::vector<std::string>` (or `NLName` table) per
+  DB. `cloneInfos` becomes a 16-byte memcpy + int copy instead of 5 string
+  allocations. The open-ended map stays for genuinely rare keys but is not
+  allocated for the source-only common case. Best value/effort point.
+- **Level 2 — columnar side table (only if MegaBoom profiling demands it).**
+  Drop the per-object `rtlInfos_` pointer; hold `std::vector<SNLSourceLoc>`
+  indexed by object id in the DB. Cache-friendly for the scans a query layer
+  does, serializes as one blob, and is literally the in-engine version of the
+  naja-scope sidecar. More invasive (object-id stability); hold unless the
+  per-object allocation is shown to dominate.
+
+### Proposal B — SNL↔slang coupling (two tiers, not one map)
+
+The join is lossy both ways — uniquification maps one slang
+`InstanceBodySymbol` to N SNL designs; bit-blasting maps one statement to many
+primitives — so a single symbol-path map collides. Two tiers:
+
+- **Tier 1 — persistent key, snapshot-survivable: `symbolPathId`.** Intern the
+  slang hierarchical path (already computed at `SNLSVConstructor.cpp:15636`)
+  into the `symbolPathId_` slot from Proposal A. Being a string slang can
+  regenerate, a cold re-elaboration rebinds by walking slang symbols and
+  matching ids — no live pointers needed. (DESIGN.md prep hook 1, made cheap
+  by the typed struct.)
+- **Tier 2 — exact live binding: `SNLDesignObject* ↔ const slang::ast::Symbol*`
+  bimap.** Build it at the `cloneRTLInfos` site, where the 1→N fan-out happens
+  and a path-only map would collide. Raw pointers are safe because the
+  compilation is alive and immutable in-session. Prerequisite: move
+  `compilation_` out of `SNLSVConstructorImpl` (a `unique_ptr` member at
+  `SNLSVConstructor.cpp:28111`, currently dies with the constructor) into a
+  session object that owns both the SNL DB and the compilation — the contained
+  ownership refactor DESIGN.md anticipates.
+
+**PyNaja exposure (the efficiency lever).** Rather than choosing between
+DESIGN.md option 2 (curated `get_type`/`get_process` API) and option 3 (full
+pyslang), expose the *bimap itself* at the PyNaja level:
+
+```python
+sym  = naja.ast_symbol_of(snl_object)      # raw pointer hop — no re-elab, no serialize
+objs = naja.snl_objects_of(slang_symbol)   # inverse, 1→N
+```
+
+pyslang then rides on top for the actual intent queries (types, params,
+processes, assertions), and `query_python` agents get the full slang surface
+they already know. The win is that the link is a pointer lookup, not
+re-elaboration (option 1's cost) nor a serialized copy.
+
+**The one real decision this forces:** pyslang must be built from naja's exact
+slang fork commit, or naja.so must expose a thin slang-symbol accessor
+compiled in-tree. That ABI lockstep is the gate between "option 2, safe" and
+"option 3, powerful" — worth deciding deliberately rather than drifting into.
 
 ## Frontend coverage notes (beta, expected but user-facing)
 
