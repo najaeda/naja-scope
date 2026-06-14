@@ -59,7 +59,10 @@ use case.
    `assign tick = (count == 8'hFF)`), dump, reset, load. Likely instances
    referencing models in the universe DB (NLDB0) that are not serialized.
    Tracked by `tests/test_zz_snapshot.py::test_snapshot_reload_roundtrip`
-   (strict xfail).
+   (strict xfail). **Critical path:** per the
+   [§ Design proposal scope decision](#scope-decision-2026-06-14-one-producer-one-re-entrant-path),
+   naja-if is the only re-entrant path for RTLInfos, so this bug also blocks
+   source-info persistence — not just fast reload.
 4. **`Instance.get_design()` raises on top** *(still in 0.7.0)*:
    `IndexError: pop from empty list` when called on the top instance
    (netlist.py:1536) — guard `len(self.pathIDs) == 0`.
@@ -78,6 +81,38 @@ Forward-looking; grounded in the naja C++ checkout at `/Users/xtof/WORK/naja2`
 (read 2026-06-13). This expands feature requests 1–2 from "expose it" into
 "expose it in a shape that is cheap at MegaBoom scale and ready for the
 phase-2 living AST." File:line references are into that checkout.
+
+### Scope decision (2026-06-14): one producer, one re-entrant path
+
+To keep this tractable for now, deliberately narrow the producer/persistence
+model:
+
+- **Warm slang elaboration is the only producer of `SNLRTLInfos`.** Source
+  ranges (and the `symbolPathId` join key) are stamped during lowering, as
+  today.
+- **Verilog dump stays a one-way export.** `dumpRTLInfosAsAttributes` emits
+  `(* sv_src_* *)` for human/tool consumption, but reloading that Verilog is
+  **not** re-entrant: the Verilog frontend will keep dropping pragmas into the
+  generic `SNLAttributes` bag (`SNLVRLConstructor.cpp:69,91`) and will *not*
+  reconstruct `SNLRTLInfos`. No source-attribute recognizer, no gate-pragma
+  producer — explicitly out of scope.
+- **naja-if is the only re-entrant / round-trip path.** The single supported
+  way RTLInfos (and symbolPathId) survives a save/reload is naja-if
+  serialization.
+
+**Consequence — this puts two items on the critical path that were
+"nice-to-have" before:**
+
+1. **RTLInfos must serialize to capnp** (Proposal A, Level 0 serialization
+   half). It is now the *only* persistence mechanism, not an optimization.
+2. **The naja-if SV-snapshot reload bug must be fixed** (Bugs §3 — currently
+   `cannot deserialize instance 0: model not found`). With Verilog round-trip
+   off the table, a broken naja-if reload means RTLInfos cannot persist *at
+   all*. Bug §3 is therefore a blocker for the persistence story, not just a
+   fast-reload convenience.
+
+Until both land, naja-scope keeps its in-session `source_index.py` bridge and
+treats snapshot reload as unavailable (its strict xfail stands).
 
 ### What exists today
 
