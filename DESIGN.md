@@ -22,7 +22,7 @@ The product is **~12 MCP tools plus a discipline about response sizes**, not a g
    - **Native low-level API** (`naja` module / PySNL): `SNLDesign` and `SNLDesignObject` now expose `hasSourceLoc()` and `getSourceLoc()`. `getSourceLoc()` returns a tuple `(file, line, column, end_line, end_column)` (or `None`). This is the first-level access naja-scope should build on.
    - **High-level najaeda API**: a frozen `SourceRange` dataclass (`file, line, end_line, column, end_column`) plus `get_source_range()` on `Instance`, `Term`, and `Net`, each returning `Optional[SourceRange]`.
    - Footgun to note: the native tuple order is `(file, line, column, end_line, end_column)` but the `SourceRange` dataclass field order is `(file, line, end_line, column, end_column)`. The najaeda wrapper remaps correctly; code using the native API directly must respect the tuple order.
-2. **This new API is NOT on PyPI yet.** `pip install najaeda` gives 0.5.2, which predates #389/#390 and has none of the source-access API. Until a release is cut, naja-scope must depend on a najaeda built from the local naja checkout (`/Users/xtof/WORK/naja2`). Treat "najaeda ≥ the source-access release" as an explicit, currently-unsatisfiable pip dependency; pin/document it and gate the MVP on either a release or a documented local-build step.
+2. **This API is now on PyPI as najaeda 0.7.2** (published 2026-06-16; verified to ship both the native `getSourceLoc()`/`hasSourceLoc()` and the high-level `SourceRange` + `get_source_range()`). The earlier gap (0.5.2 predated #389/#390) is closed — Week 0 collapses to a single `najaeda>=0.7.2` pin in `pyproject.toml`. No local build required.
 3. `load_system_verilog` can emit the Slang elaborated AST as JSON with source info (`SystemVerilogConfig.elaborated_ast_json_path`, `include_source_info_in_elaborated_ast_json`). A source-intent layer exists as a byproduct.
 4. A prototype najaeda MCP server already exists (load_verilog, load_liberty, load_primitives, top_summary, list_child_instances, instance_stats, dump_naja_if, load_naja_if, reset_universe). The MVP is an extension of it.
 5. naja-if (Cap'n Proto) snapshots give fast session reload, avoiding re-elaboration.
@@ -33,7 +33,7 @@ The product is **~12 MCP tools plus a discipline about response sizes**, not a g
 naja-scope sits on najaeda, but najaeda is itself a *simplification layer* over the native `naja` bindings (PySNL). Both are importable from Python:
 
 - **najaeda high-level API** (`Instance`/`Term`/`Net`, `get_source_range()`, path-string navigation) — the default surface for the fixed MCP tools. Stable, ergonomic, what most tool handlers should call.
-- **native low-level API** (`from najaeda import naja`; `SNLDesign`/`SNLDesignObject`, `getSourceLoc()`, occurrences/paths) — more powerful and lower-overhead. The first level of access; use it where the high-level wrapper is missing a capability, and expose it (read-only) through `query_python` as the agent's power escape hatch. What agents repeatedly reach for here is the roadmap for what najaeda should absorb.
+- **native low-level API** (`from najaeda import naja`; `SNLDesign`/`SNLDesignObject`, `getSourceLoc()`, occurrences/paths) — more powerful and lower-overhead. **naja-scope is built entirely on this layer** (`snl.py` + `loader.py`); the high-level `najaeda.netlist` wrappers are not used. It is also exposed (read-only) through `query_python` as the agent's power escape hatch. What agents repeatedly reach for here is the roadmap for what the raw helper layer should absorb.
 
 ## 1. Conceptual architecture
 
@@ -134,9 +134,9 @@ One sentence: *the only open, pip-installable system where an agent can traverse
 
 ## 9. MVP (2–4 weeks)
 
-**Week 0 (prerequisite, not optional):** pin naja-scope to a najaeda built from the local naja checkout — the source-access API (#389/#390) is not on PyPI (see fact 2). Either (a) cut a najaeda release and depend on it normally, or (b) document a `pip install -e` / build-from-source step and pin the minimum version in `pyproject.toml` so the gap is explicit. Until this is settled, `pip install najaeda` produces a non-working naja-scope.
+**Week 0 — done:** the source-access API shipped in najaeda 0.7.2 on PyPI (see fact 2). Pin `najaeda>=0.7.2` in `pyproject.toml`; no local build, no release to cut. The MVP is unblocked.
 
-- **Week 1:** ~~expose source info through Python~~ — **done in naja (#389/#390)**. Build the source-access into the tools directly: `get_source` now reads `Instance/Term/Net.get_source_range()` (high-level) or `getSourceLoc()` (native). Add `resolve`, `get_drivers`, `get_loads`, `get_source`, `find` to the existing MCP server.
+- **Week 1:** ~~expose source info through Python~~ — **done in naja (#389/#390), shipped in najaeda 0.7.2**. Build the source-access into the tools directly: `get_source` now reads `Instance/Term/Net.get_source_range()` (high-level) or `getSourceLoc()` (native). Add `resolve`, `get_drivers`, `get_loads`, `get_source`, `find` to the existing MCP server.
 - **Week 2:** `trace_cone` (stop-at-flops, hard max_nodes), deterministic `get_module_card`, pagination everywhere.
 - **Week 3 (the real deliverable):** the eval — 25–30 questions with golden answers across two regress designs (UART-class small + cva6/MegaBoom-class large). Claude Code with the MCP server vs plain Claude Code with grep; measure correctness, tokens, turns. Include a handful of intent-class questions (FSM state names, reset polarity, symbolic parameter meaning) answered the phase-1 way (source-range + read) to baseline what the phase-2 living AST would improve. If the win isn't decisive on the large design, months are saved.
 - **Week 4:** `query_python` sandbox, docs, publish.
@@ -147,7 +147,7 @@ Deferred: Slang-side graph store, all LLM enrichment, protocol inference beyond 
 
 1. Record `sv_symbol_path` (slang hierarchical path string) as an RTL info at lowering time, alongside the typed `SNLSourceLoc` — a persistent join key that lets a future live AST re-bind to a snapshot-loaded SNL. (This is a naja-side frontend change, request it of najaeda; could ride on the same `SNLRTLInfos` rework that #389 introduced.)
 2. Split tool handlers behind a provider interface: `StructuralProvider` (SNL, always present) and `IntentProvider` (optional, absent in MVP), so phase 2 plugs in rather than rewrites.
-3. `query_python` imports both `najaeda` (documented simple surface) and raw `naja` (PySNL power layer) from day one. Read-only by convention/gating in v1. What agents repeatedly reach for in raw `naja` is the roadmap for what najaeda should absorb — the sandbox doubles as telemetry.
+3. `query_python` exposes the raw layer only — `naja` (PySNL), `snl` (naja-scope's raw helpers: InstNode, top_node, iter_designs, equipotentials), `session`, and `top`. Read-only by convention/gating in v1. (Earlier drafts exposed high-level `najaeda.netlist` too; the implementation standardised on raw SNL end to end, so the escape hatch follows suit.) What agents repeatedly reach for here is the roadmap for what the raw helpers should absorb — the sandbox doubles as telemetry.
 
 ## Phase 2: living intent layer (slang AST + SNL coupled in memory)
 

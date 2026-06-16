@@ -165,8 +165,9 @@ def get_stats(path: Optional[str] = None, limit: Optional[int] = None,
 
 @_tool
 def query_python(code: str) -> dict:
-    """Escape hatch: run Python against the live design ('netlist', 'naja',
-    'get_top' in scope). Read-only by convention; output capped."""
+    """Escape hatch: run Python against the live design ('naja' raw bindings,
+    'snl' raw helpers, 'session', 'top' in scope). Read-only by convention;
+    output capped."""
     return api.query_python(code)
 
 

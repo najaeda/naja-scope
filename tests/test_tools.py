@@ -73,7 +73,10 @@ def test_status(uart_session):
 
 
 def test_query_python(uart_session):
-    out = api.query_python("get_top().get_name()")
+    # Raw-only escape hatch: naja / snl / session / top in scope, no netlist.
+    out = api.query_python("top.model_name")
+    assert out["result"] == "'uart_top'"
+    out = api.query_python("naja.NLUniverse.get().getTopDesign().getName()")
     assert out["result"] == "'uart_top'"
 
 

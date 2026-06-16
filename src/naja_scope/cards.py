@@ -4,12 +4,10 @@ structure only — no LLM at indexing time (DESIGN.md section 7)."""
 
 from __future__ import annotations
 
-import difflib
 import re
 from typing import Dict, List, Optional
 
-from najaeda import naja
-
+from . import snl
 from .errors import ScopeError
 from .session import Session
 
@@ -27,26 +25,11 @@ def _dir_str(direction) -> str:
     return s.split(".")[-1].lower()
 
 
-def _all_designs():
-    universe = naja.NLUniverse.get()
-    if universe is None:
-        return
-    db = universe.getTopDB()
-    if db is None:
-        return
-    for lib in db.getLibraries():
-        for design in lib.getSNLDesigns():
-            yield design
-
-
 def find_design(name: str):
-    names = []
-    for design in _all_designs():
-        if design.getName() == name:
-            return design
-        names.append(design.getName())
-    suggestions = difflib.get_close_matches(name, names, n=8, cutoff=0.5)
-    raise ScopeError(f"No module named '{name}'.", suggestions)
+    design = snl.find_design(name)
+    if design is not None:
+        return design
+    raise ScopeError(f"No module named '{name}'.", snl.suggest_designs(name))
 
 
 def _ports(design) -> List[dict]:

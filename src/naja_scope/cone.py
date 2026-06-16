@@ -1,17 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 """Cone tracing with structural compression: stop-at-flops, hard max_nodes,
 frontier summaries, counts by model. Token-bounding here is a correctness
-requirement, not polish (DESIGN.md section 4)."""
+requirement, not polish (DESIGN.md section 4).
+
+Runs on raw SNL equipotentials: from each pin we build the equipotential,
+classify leaf endpoints by direction, and recurse through the model's opposite
+terms.
+"""
 
 from __future__ import annotations
 
 from collections import deque
 from typing import Dict, List
 
-from .connectivity import _bits_of, _equipotential_for
+from . import snl
 from .errors import ScopeError
-from .resolve import Resolved, instance_path_str, source_ref
-from .session import Session
+from .resolve import Resolved
+from .source_index import SrcRange
 
 DEFAULT_MAX_NODES = 200
 HARD_MAX_NODES = 1000
@@ -19,7 +24,14 @@ MAX_DEPTH = 64
 MAX_EDGES_FACTOR = 4
 
 
-def trace_cone(resolved: Resolved, session: Session, direction: str,
+def _bits_of(resolved: Resolved) -> List:
+    if resolved.kind in ("term", "net"):
+        return snl.obj_bits(resolved.obj)
+    raise ScopeError(f"'{resolved.path}' is an instance; trace_cone expects a "
+                     "term or net.")
+
+
+def trace_cone(resolved: Resolved, session, direction: str,
                stop: str = "flops", max_nodes: int = DEFAULT_MAX_NODES,
                include_edges: bool = True) -> dict:
     if direction not in ("fanin", "fanout"):
@@ -29,30 +41,38 @@ def trace_cone(resolved: Resolved, session: Session, direction: str,
     max_nodes = max(1, min(max_nodes, HARD_MAX_NODES))
     max_edges = max_nodes * MAX_EDGES_FACTOR
 
+    # Leaf endpoints feeding (fanin) or fed by (fanout) the net; recurse through
+    # the model's opposite-direction terms.
+    leaf_exclude = snl.DIR_INPUT if direction == "fanin" else snl.DIR_OUTPUT
+    top_keep = snl.DIR_OUTPUT if direction == "fanin" else snl.DIR_INPUT
+    recurse_dir = snl.DIR_INPUT if direction == "fanin" else snl.DIR_OUTPUT
+
     nodes: Dict[str, dict] = {}
     edges: List[List[str]] = []
     frontier: List[dict] = []
     counts: Dict[str, int] = {}
-    visited_terms = set()
+    visited = set()
     frontier_seen = set()
     truncated = False
 
-    # Queue of (bit term/net, path of the node it feeds, depth).
-    queue = deque((bit, resolved.path, 0) for bit in _bits_of(resolved))
+    queue = deque()
+    for i, bit in enumerate(_bits_of(resolved)):
+        queue.append((bit, resolved.kind, resolved.owner, resolved.path, 0,
+                      f"{resolved.path}#{i}"))
 
-    def add_node(inst) -> str:
-        path = instance_path_str(inst, session)
+    def add_node(inst, ids) -> str:
+        path = snl.path_str_from_ids(ids)
         if path not in nodes:
-            entry = {"path": path, "model": inst.get_model_name()}
+            model = inst.getModel()
+            entry = {"path": path, "model": model.getName()}
             try:
-                if inst.is_sequential():
+                if model.isSequential():
                     entry["seq"] = True
             except Exception:
                 pass
-            src = source_ref(
-                Resolved("instance", inst, path, inst.get_design()), session)
-            if src:
-                entry["src"] = src
+            loc = snl.source_loc(inst)
+            if loc:
+                entry["src"] = SrcRange.from_loc(loc).to_ref()
             nodes[path] = entry
             counts[entry["model"]] = counts.get(entry["model"], 0) + 1
         return path
@@ -75,47 +95,47 @@ def trace_cone(resolved: Resolved, session: Session, direction: str,
         if len(nodes) >= max_nodes:
             truncated = True
             break
-        bit, sink_path, depth = queue.popleft()
-        bit_key = str(bit)
-        if bit_key in visited_terms:
+        bit, kind, owner, sink_path, depth, key = queue.popleft()
+        if key in visited:
             continue
-        visited_terms.add(bit_key)
-        eq = _equipotential_for(bit)
+        visited.add(key)
+        eq = snl.build_equipotential(kind, owner, bit)
         if eq is None:
             continue
-        leaf_iter = (eq.get_leaf_drivers() if direction == "fanin"
-                     else eq.get_leaf_readers())
-        top_iter = (eq.get_top_drivers() if direction == "fanin"
-                    else eq.get_top_readers())
-        for term in leaf_iter:
+        for occ in eq.getInstTermOccurrences():
             if len(nodes) >= max_nodes:
                 truncated = True
                 break
-            inst = term.get_instance()
-            path = add_node(inst)
+            it = occ.getInstTerm()
+            inst = it.getInstance()
+            model = inst.getModel()
+            if not model.isLeaf() or it.getDirection() == leaf_exclude:
+                continue
+            ids = list(occ.getPath().getInstanceIDs())
+            ids.append(inst.getID())
+            path = add_node(inst, ids)
             add_edge(path, sink_path)
             is_seq = False
             try:
-                is_seq = inst.is_sequential()
+                is_seq = model.isSequential()
             except Exception:
                 pass
             if is_seq and stop == "flops":
-                add_frontier(path, "flop", inst.get_model_name())
+                add_frontier(path, "flop", model.getName())
                 continue
             if depth + 1 > MAX_DEPTH:
-                add_frontier(path, "max_depth", inst.get_model_name())
+                add_frontier(path, "max_depth", model.getName())
                 continue
-            next_terms = (inst.get_input_bit_terms() if direction == "fanin"
-                          else inst.get_output_bit_terms())
-            for nxt in next_terms:
-                queue.append((nxt, path, depth + 1))
-        for term in top_iter:
-            top = session.require_top()
-            port = f"{top.get_name()}.{term.get_name()}"
+            inst_node = snl.node_from_ids(ids)
+            for nxt in model.getBitTerms():
+                if nxt.getDirection() == recurse_dir:
+                    queue.append((nxt, "term", inst_node, path, depth + 1,
+                                  f"{path}|{nxt.getName()}"))
+        for term in eq.getTerms():
+            if term.getDirection() == top_keep:
+                continue
+            port = f"{snl.top_design().getName()}.{term.getName()}"
             add_frontier(port, "port")
-
-    if queue and not truncated:
-        truncated = len(nodes) >= max_nodes
 
     out = {
         "root": resolved.path,
