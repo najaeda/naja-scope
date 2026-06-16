@@ -10,14 +10,17 @@ import io
 import os
 from typing import List, Optional
 
-from najaeda import naja, netlist
+from najaeda import naja
 
 from . import cards as cards_mod
 from . import cone as cone_mod
 from . import connectivity
+from . import loader
+from . import snl
 from .errors import ScopeError
 from .paging import clamp_limit, paginate
-from .resolve import Resolved, describe, resolve_path, source_ref
+from .resolve import (Resolved, describe, resolve_path, source_range,
+                      source_ref)
 from .session import SESSION
 
 MAX_SOURCE_LINES = 120
@@ -27,13 +30,13 @@ QUERY_OUTPUT_CAP = 8000
 
 # -- lifecycle ----------------------------------------------------------------
 
-def _summary(instance: netlist.Instance) -> dict:
+def _summary(node: snl.InstNode) -> dict:
     return {
-        "name": instance.get_name(),
-        "model": instance.get_model_name(),
-        "children": instance.count_child_instances(),
-        "terms": instance.count_terms(),
-        "nets": instance.count_nets(),
+        "name": node.name,
+        "model": node.model_name,
+        "children": node.child_count(),
+        "terms": sum(1 for _ in node.design.getTerms()),
+        "nets": sum(1 for _ in node.design.getNets()),
     }
 
 
@@ -72,16 +75,16 @@ def load_verilog(files: List[str], keep_assigns: bool = True,
 
 
 def load_liberty(files: List[str]) -> dict:
-    netlist.load_liberty(files)
+    loader.load_liberty(files)
     return {"ok": True}
 
 
 def load_primitives(name: Optional[str] = None,
                     file: Optional[str] = None) -> dict:
     if name:
-        netlist.load_primitives(name)
+        loader.load_primitives(name)
     elif file:
-        netlist.load_primitives_from_file(file)
+        loader.load_primitives_from_file(file)
     else:
         raise ScopeError("Provide 'name' (xilinx|yosys) or 'file'.")
     return {"ok": True}
@@ -121,7 +124,7 @@ def find(pattern: str, kind: str = "any", limit: Optional[int] = None,
     if kind not in ("instance", "net", "port", "module", "any"):
         raise ScopeError("kind must be instance|net|port|module|any.")
     top = SESSION.require_top()
-    top_name = top.get_name()
+    top_name = top.name
     is_path_pattern = "." in pattern
 
     def matches_name(name: str, path: str) -> bool:
@@ -132,37 +135,38 @@ def find(pattern: str, kind: str = "any", limit: Optional[int] = None,
 
     def walk():
         if kind in ("module", "any"):
-            for design in cards_mod._all_designs():
+            for design in snl.iter_designs():
                 name = design.getName()
                 if matches_name(name, name):
                     yield {"kind": "module", "name": name}
-        stack = [(top, top_name)]
+        stack = [top]
         while stack:
-            inst, path = stack.pop()
+            node = stack.pop()
+            path = node.path
             if kind in ("net", "any"):
-                for net in inst.get_nets():
-                    n = net.get_name()
+                for net in node.design.getNets():
+                    n = net.getName()
+                    if not n:
+                        continue
                     p = f"{path}.{n}"
                     if matches_name(n, p):
                         yield {"kind": "net", "path": p,
-                               "width": net.get_width()}
+                               "width": snl.obj_width(net)}
             if kind in ("port", "any"):
-                for term in inst.get_terms():
-                    n = term.get_name()
+                for term in node.design.getTerms():
+                    n = term.getName()
                     p = f"{path}.{n}"
                     if matches_name(n, p):
                         yield {"kind": "term", "path": p,
-                               "dir": str(term.get_direction()
-                                          ).split(".")[-1].lower()}
+                               "dir": snl.direction_str(term.getDirection())}
             children = []
-            for child in inst.get_child_instances():
-                n = child.get_name()
-                p = f"{path}.{n}"
-                if kind in ("instance", "any") and matches_name(n, p):
-                    yield {"kind": "instance", "path": p,
-                           "model": child.get_model_name()}
+            for child in snl.child_nodes(node):
+                if kind in ("instance", "any") and matches_name(
+                        child.name, child.path):
+                    yield {"kind": "instance", "path": child.path,
+                           "model": child.model_name}
                 if not child.is_leaf():
-                    children.append((child, p))
+                    children.append(child)
             stack.extend(reversed(children))
 
     page, envelope = paginate(walk(), limit=limit, cursor=cursor)
@@ -178,31 +182,28 @@ def get_hierarchy(path: Optional[str] = None, depth: int = 1,
         root = matches[0]
     else:
         top = SESSION.require_top()
-        root = Resolved("instance", top, top.get_name(), top)
+        root = Resolved("instance", top, top.path, top)
 
     def node(resolved: Resolved, level: int) -> dict:
         inst = resolved.obj
-        out = {"name": inst.get_name() or resolved.path,
-               "model": inst.get_model_name()}
+        out = {"name": inst.name or resolved.path, "model": inst.model_name}
         src = source_ref(resolved, SESSION)
         if src:
             out["src"] = src
         if inst.is_leaf():
             out["leaf"] = True
             return out
-        total = inst.count_child_instances()
+        total = inst.child_count()
         out["children_total"] = total
         if level >= depth:
             return out
         children = []
         shown = 0
-        for child in inst.get_child_instances():
+        for child in snl.child_nodes(inst):
             if shown >= limit:
                 out["children_truncated"] = total - shown
                 break
-            child_resolved = Resolved(
-                "instance", child, f"{resolved.path}.{child.get_name()}",
-                inst)
+            child_resolved = Resolved("instance", child, child.path, inst)
             children.append(node(child_resolved, level + 1))
             shown += 1
         out["children"] = children
@@ -249,36 +250,14 @@ def get_source(path: str, context_lines: int = DEFAULT_SOURCE_CONTEXT) -> dict:
     context_lines = max(0, min(context_lines, 20))
     matches = resolve_path(SESSION, path)
     resolved = matches[0]
-    ref = source_ref(resolved, SESSION)
-    if not ref:
+    rng = source_range(resolved)
+    if rng is None:
         return {
             "object": resolved.path,
             "error": "No source range known for this object.",
             "hint": ("Source ranges come from SystemVerilog loading; "
-                     "gate-level Verilog without sv_src_* attributes has none."),
+                     "gate-level Verilog without source info has none."),
         }
-    index = SESSION.get_source_index()
-    rng = None
-    if resolved.kind == "instance":
-        if resolved.obj.is_top():
-            rng = index.module_range(resolved.obj.get_model_name())
-        else:
-            parent = resolved.obj.get_design()
-            rng = index.instance_range(parent.get_model_name(),
-                                       resolved.obj.get_name())
-    elif resolved.kind == "net":
-        rng = index.net_range(resolved.owner.get_model_name(),
-                              resolved.obj.get_name())
-    elif resolved.kind == "term":
-        owner = resolved.owner
-        if owner.is_top():
-            rng = index.module_range(owner.get_model_name())
-        else:
-            rng = index.instance_range(owner.get_design().get_model_name(),
-                                       owner.get_name())
-    if rng is None:
-        return {"object": resolved.path,
-                "error": "No source range known for this object."}
     file_path = SESSION.find_source_file(rng.file)
     if file_path is None:
         return {"object": resolved.path, "src": rng.to_ref(),
@@ -316,22 +295,22 @@ def _model_label(name: str) -> str:
     return name or "(unnamed)"
 
 
-def _safe_seq(instance) -> bool:
+def _safe_seq(model) -> bool:
     try:
-        return bool(instance.is_sequential())
+        return bool(model.isSequential())
     except Exception:
         return False
 
 
-def _collect_model_stats(instance, memo: dict) -> dict:
+def _collect_model_stats(design, memo: dict) -> dict:
     """Hierarchical stats memoized per model. Deliberately avoids
     najaeda.stats: its is_basic_primitive crashes the process on multi-output
     primitives like naja_fa (see NAJAEDA_NOTES.md)."""
-    model_id = instance.get_model_id()
+    model_id = design.getID()
     if model_id in memo:
         return memo[model_id]
     entry = {
-        "model": _model_label(instance.get_model_name()),
+        "model": _model_label(design.getName()),
         "assigns": 0,
         "leaf_by_model": {},
         "children_by_model": {},
@@ -339,19 +318,20 @@ def _collect_model_stats(instance, memo: dict) -> dict:
         "flat_sequential": 0,
     }
     memo[model_id] = entry
-    for child in instance.get_child_instances():
-        if child.is_assign():
+    for child in design.getInstances():
+        model = child.getModel()
+        if model.isAssign():
             entry["assigns"] += 1
-        elif child.is_leaf():
-            name = _model_label(child.get_model_name())
+        elif model.isLeaf():
+            name = _model_label(model.getName())
             entry["leaf_by_model"][name] = (
                 entry["leaf_by_model"].get(name, 0) + 1)
             entry["flat_leaves"] += 1
-            if _safe_seq(child):
+            if _safe_seq(model):
                 entry["flat_sequential"] += 1
         else:
-            sub = _collect_model_stats(child, memo)
-            name = _model_label(child.get_model_name())
+            sub = _collect_model_stats(model, memo)
+            name = _model_label(model.getName())
             entry["children_by_model"][name] = (
                 entry["children_by_model"].get(name, 0) + 1)
             entry["flat_leaves"] += sub["flat_leaves"]
@@ -364,11 +344,11 @@ def get_stats(path: Optional[str] = None, limit: Optional[int] = None,
     limit = clamp_limit(limit, default=25)
     if path:
         matches = resolve_path(SESSION, path, kind="instance")
-        instance = matches[0].obj
+        design = matches[0].obj.design
     else:
-        instance = SESSION.require_top()
+        design = SESSION.require_top().design
     memo: dict = {}
-    root = _collect_model_stats(instance, memo)
+    root = _collect_model_stats(design, memo)
     models = sorted(memo.values(), key=lambda m: -m["flat_leaves"])
     for m in models:
         m["leaf_by_model"] = dict(sorted(
@@ -394,8 +374,11 @@ def query_python(code: str) -> dict:
                          "(NAJA_SCOPE_DISABLE_PYTHON is set).")
     SESSION.require_top()
     buf = io.StringIO()
-    env = {"netlist": netlist, "naja": naja, "session": SESSION,
-           "get_top": netlist.get_top}
+    # Raw-only escape hatch: `naja` (PySNL bindings), `snl` (naja-scope's raw
+    # helper layer: InstNode, top_node, iter_designs, equipotentials), and the
+    # live session. No high-level najaeda.netlist here.
+    env = {"naja": naja, "snl": snl, "session": SESSION,
+           "top": snl.top_node()}
     result_repr = None
     with contextlib.redirect_stdout(buf):
         try:

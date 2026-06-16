@@ -9,17 +9,18 @@ architecture, scope, phasing, and the tool API.
 
 ## Rules
 
-- Thin layer over the `najaeda` API, plus the raw `naja` bindings it ships
-  (`from najaeda import naja` — the native low-level PySNL access; use it where
-  the high-level wrapper lacks a capability). If a needed capability is missing
-  from both, it becomes a najaeda feature request (local naja checkout for
-  reference: /Users/xtof/WORK/naja2) — no private hooks, no naja C++ build
-  dependency in this repo.
-- Dependency caveat: the source-access API (najaeda source ranges /
-  `getSourceLoc`, naja #389/#390) is NOT yet on PyPI. `pip install najaeda`
-  (0.5.2) does not have it. Until a release is cut, depend on a najaeda built
-  from the local checkout and pin the minimum version explicitly. See DESIGN.md
-  fact 2 / Week 0.
+- Built on the raw `naja` bindings (`from najaeda import naja` — the PySNL
+  interface to the SNL C++ API), centralised in `snl.py` and `loader.py`. The
+  high-level `najaeda.netlist` wrappers are NOT used anywhere — querying,
+  navigation, connectivity, loading, and snapshots all go through raw SNL.
+  (`najaeda.primitives` is still used by `loader.load_primitives` for the
+  bundled xilinx/yosys libraries; that is library content, not the netlist
+  layer.) If a capability is missing from raw naja, it becomes a naja feature
+  request (local checkout: /Users/xtof/WORK/naja2) — no private hooks, no naja
+  C++ build dependency in this repo.
+- Dependency: requires `najaeda>=0.7.2` (the source-access API — source ranges
+  / `getSourceLoc`, naja #389/#390 — shipped to PyPI in 0.7.2). Pin it in
+  `pyproject.toml`. Earlier 0.5.x lacks the API. See DESIGN.md fact 2 / Week 0.
 - Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
   slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
   passes.

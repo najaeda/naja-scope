@@ -12,8 +12,7 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
-from najaeda import naja, netlist
-
+from . import loader, snl
 from .errors import NoDesignError, ScopeError
 from .naming import ensure_names
 from .source_index import SourceIndex
@@ -34,17 +33,16 @@ class Session:
     # -- lifecycle -----------------------------------------------------------
 
     def reset(self):
-        netlist.reset()
+        loader.reset_universe()
         self.__init__()
 
     def has_top(self) -> bool:
-        universe = naja.NLUniverse.get()
-        return universe is not None and universe.getTopDesign() is not None
+        return snl.has_top()
 
-    def require_top(self) -> netlist.Instance:
+    def require_top(self) -> "snl.InstNode":
         if not self.has_top():
             raise NoDesignError()
-        return netlist.get_top()
+        return snl.top_node()
 
     def _record_sources(self, files: List[str]):
         self.loaded_files.extend(files)
@@ -58,35 +56,31 @@ class Session:
 
     def load_systemverilog(self, files: List[str], flist: Optional[str] = None,
                            top: Optional[str] = None,
-                           keep_assigns: bool = True) -> netlist.Instance:
-        config = netlist.SystemVerilogConfig(
-            keep_assigns=keep_assigns, flist=flist, top=top)
-        # load_system_verilog exists in 0.5.2 (alias) and 0.7.0 (only name).
-        top_instance = netlist.load_system_verilog(files, config=config)
+                           keep_assigns: bool = True) -> "snl.InstNode":
+        loader.load_systemverilog(files, flist=flist, top=top,
+                                  keep_assigns=keep_assigns)
         self._record_sources(files)
         if flist:
             self._record_sources([flist])
         self.naming_stats = ensure_names()
         self.source_index = None  # built lazily on first source query
-        return top_instance
+        return snl.top_node()
 
     def load_verilog(self, files: List[str], keep_assigns: bool = True,
-                     allow_unknown_designs: bool = False) -> netlist.Instance:
-        config = netlist.VerilogConfig(
-            keep_assigns=keep_assigns,
-            allow_unknown_designs=allow_unknown_designs)
-        top_instance = netlist.load_verilog(files, config=config)
+                     allow_unknown_designs: bool = False) -> "snl.InstNode":
+        loader.load_verilog(files, keep_assigns=keep_assigns,
+                            allow_unknown_designs=allow_unknown_designs)
         self._record_sources(files)
         self.naming_stats = ensure_names()
         self.source_index = None
-        return top_instance
+        return snl.top_node()
 
     # -- source index --------------------------------------------------------
 
     def get_source_index(self) -> SourceIndex:
         self.require_top()
         if self.source_index is None:
-            self.source_index = SourceIndex.build(netlist.get_top())
+            self.source_index = SourceIndex.build()
         return self.source_index
 
     def find_source_file(self, path: str) -> Optional[str]:
@@ -103,7 +97,7 @@ class Session:
 
     def save_snapshot(self, directory: str) -> dict:
         self.require_top()
-        netlist.dump_naja_if(directory)
+        loader.dump_naja_if(directory)
         index = self.get_source_index()
         index.save(os.path.join(directory, _SIDECAR_NAME))
         import json
@@ -113,11 +107,11 @@ class Session:
                        "loaded_files": self.loaded_files}, f)
         return {"path": directory, "source_index": index.stats()}
 
-    def load_snapshot(self, directory: str) -> netlist.Instance:
+    def load_snapshot(self, directory: str) -> "snl.InstNode":
         if not os.path.isdir(directory):
             raise ScopeError(f"Snapshot directory not found: {directory}")
         try:
-            netlist.load_naja_if(directory)
+            loader.load_naja_if(directory)
         except RuntimeError as e:
             if "model not found" in str(e):
                 raise ScopeError(
