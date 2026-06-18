@@ -22,8 +22,9 @@ def test_save_snapshot_writes_netlist_and_sidecar(uart_session, tmp_path):
 
 
 @pytest.mark.xfail(
-    reason="najaeda 0.5.2: naja-if snapshots of SV-loaded designs fail to "
-           "deserialize ('model not found'); see NAJAEDA_NOTES.md",
+    reason="najaeda 0.5.2 through 0.7.3: naja-if snapshots of SV-loaded "
+           "designs fail to deserialize ('model not found'); reverified on "
+           "0.7.3 (2026-06-18); see NAJAEDA_NOTES.md",
     strict=True)
 def test_snapshot_reload_roundtrip(uart_session, tmp_path):
     snap = str(tmp_path / "snap2")

@@ -1,0 +1,94 @@
+# Golden-answer bank for the UART fixture (tests/fixtures/uart.sv).
+# Every golden answer was verified against the live design via naja_scope.api
+# on 2026-06-18 (see /tmp/uart_explore.py outputs). UART is the harness-
+# validation + honest-baseline arm: grep is competitive on a 110-line file, so
+# the decisive token win is expected on CVA6, not here (DESIGN.md §4).
+#
+# Fields: id, category, intent (true = phase-1-only intent question, baselines
+# phase 2), question, golden (human-readable truth), check (see score.py).
+
+design: uart
+
+questions:
+  - id: uart-drivers-txo
+    category: connectivity
+    intent: false
+    question: >
+      In this UART design, which flip-flop (register) directly drives the
+      top-level output port tx_o? Give the distinguishing instance name.
+    golden: "uart_top.u_tx.tx_o_dff (a naja_dff, the registered tx_o output at uart.sv:93-94)"
+    check: {type: any_of, groups: [["tx_o_dff"]]}
+
+  - id: uart-uniquification-counter
+    category: structure
+    intent: false
+    question: >
+      The module `counter` is instantiated with two different parameterizations.
+      How many distinct elaborated module variants of `counter` exist after
+      elaboration, and what are they called?
+    golden: "Two: `counter` (W=4) and `counter__elab1` (W=3)."
+    check: {type: any_of, groups: [["counter", "counter__elab1"], ["2", "counter__elab1"]]}
+
+  - id: uart-param-bitcnt-width
+    category: parameters
+    intent: false
+    question: >
+      What is the bit width of the `count` output of instance
+      uart_top.u_tx.u_bit_cnt?
+    golden: "3 bits (u_bit_cnt is counter #(.W(3)) -> model counter__elab1, count is [2:0])."
+    check: {type: numeric, value: 3, tol: 0}
+
+  - id: uart-hier-counters
+    category: hierarchy
+    intent: false
+    question: >
+      Inside instance u_tx (module uart_tx), which two `counter` sub-instances
+      are present? Give their instance names.
+    golden: "u_div_cnt (counter, W=4) and u_bit_cnt (counter__elab1, W=3)."
+    check: {type: any_of, groups: [["u_div_cnt", "u_bit_cnt"]]}
+
+  - id: uart-source-txo-alwaysff
+    category: source
+    intent: false
+    question: >
+      Which SystemVerilog source file and line number contains the always_ff
+      block that registers tx_o? Answer as file:line.
+    golden: "uart.sv:92-95 (the always_ff; the tx_o flop's source range is uart.sv:93-94)."
+    check: {type: regex, pattern: 'uart\.sv:9[2-5]'}
+
+  - id: uart-flop-count
+    category: structure
+    intent: false
+    question: >
+      How many word-level flip-flop (register) primitive instances does the
+      whole flattened uart_top design contain? (Count register groups, i.e.
+      always_ff-driven registers, not individual bits.)
+    golden: "5: state (w2), shift_q (w8), tx_o (dff), u_div_cnt.count (w4), u_bit_cnt.count (w3)."
+    check: {type: numeric, value: 5, tol: 0}
+
+  - id: uart-counter-adders
+    category: structure
+    intent: false
+    question: >
+      How many full-adder (naja_fa) primitives are in the W=4 `counter` module
+      (instance u_div_cnt)?
+    golden: "4 naja_fa primitives (one per bit of the 4-bit increment)."
+    check: {type: numeric, value: 4, tol: 0}
+
+  - id: uart-reset-polarity
+    category: intent
+    intent: true
+    question: >
+      Is the reset of the uart_tx module active-high or active-low, and what is
+      the reset signal called?
+    golden: "Active-low; reset signal rst_n (always_ff uses negedge rst_n / if (!rst_n))."
+    check: {type: any_of, groups: [["active", "low", "rst_n"], ["active-low", "rst_n"]]}
+
+  - id: uart-fsm-state-names
+    category: intent
+    intent: true
+    question: >
+      The uart_tx transmit FSM has a 2-bit state register. What are the symbolic
+      names of its states and their numeric encodings?
+    golden: "IDLE=0, START=1, DATA=2, STOP=3 (localparams at uart.sv:37; lost in lowering to a naja_dffrn__w2)."
+    check: {type: any_of, groups: [["idle", "start", "data", "stop"]]}

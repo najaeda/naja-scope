@@ -51,7 +51,7 @@ use case.
    translated to a Python exception, and `is_buf/is_const/is_inv` should
    return False for multi-output primitives.
 3. **naja-if snapshots of SV-loaded designs do not reload** *(still in
-   0.7.0)*: `dump_naja_if` + `reset` + `load_naja_if` fails with
+   0.7.3; reverified 2026-06-18)*: `dump_naja_if` + `reset` + `load_naja_if` fails with
    `cannot deserialize instance 0: model not found (reference dbID ...)` for
    designs lowered from SystemVerilog (works for the trivial counter-only
    design; fails as soon as comparisons/assigns appear, with or without

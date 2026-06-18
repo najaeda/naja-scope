@@ -1,0 +1,16 @@
+# Golden-answer bank for CVA6 (cv32a6_imac_sv32 for dev, cv64a6_imafdc_sv39 for
+# the headline run). DELIBERATELY EMPTY until phase E2: golden answers MUST be
+# verified against the live elaborated core (warm server) before they are
+# trusted — authoring CVA6 answers from memory or from grep would defeat the
+# eval. See DESIGN.md §9 and the E2 step in eval/README.md.
+#
+# Target mix (DESIGN.md §9): connectivity/drivers, cross-hierarchy cones
+# (stop-at-flops), hierarchy/structure counts, source back-links, plus a few
+# intent-class questions (FSM/enum state names, reset polarity, symbolic
+# parameter meaning) answered the phase-1 way to baseline phase 2. Skew toward
+# questions where grep is *wrong*, not merely slow (post-elaboration
+# connectivity, generate/parameterized wiring).
+
+design: cva6
+
+questions: []
