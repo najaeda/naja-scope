@@ -62,13 +62,14 @@ every list is paginated (`limit`, `cursor`); responses carry
 
 ## How source ranges work today
 
-najaeda (as of 0.7.0) stamps `sv_src_*` on every netlist object but does not expose
-them in Python. At index time naja-scope dumps attribute-annotated Verilog to
-a temp file once and parses the ranges back into a sidecar keyed by
-`(model, kind, name)` — public API only. Anonymous lowered objects (FFs,
-gates) are first given stable derived names (`tx_o_dff` for the FF driving
-`tx_o`), which is also what makes them addressable by path. When najaeda
-exposes RTL infos directly, only `SourceIndex.build` changes.
+Since najaeda 0.7.2 every SNL object exposes its SystemVerilog origin directly
+in Python through `getSourceLoc()` (naja #389/#390). naja-scope walks the raw
+designs once and reads those locations straight into a sidecar index keyed by
+`(model, kind, name)` — no Verilog dump, no attribute reparsing. Anonymous
+lowered objects (FFs, gates) are first given stable derived names (`tx_o_dff`
+for the FF driving `tx_o`), which is also what makes them addressable by path.
+The index serializes alongside the naja-if snapshot, so source ranges survive a
+snapshot reload (fixed in 0.7.4) with no re-elaboration.
 
 ## Scope
 
@@ -81,5 +82,7 @@ RTL/design questions on synthesizable SystemVerilog. Not a DV/testbench tool
 .venv/bin/python -m pytest tests/ -q
 ```
 
-Two strict xfails track upstream najaeda bugs (specialization merging,
-naja-if reload); they flip loudly when fixed upstream.
+The suite is fully green on najaeda 0.7.4 (no xfails): the upstream bugs it
+once tracked — parameter-specialization merging and naja-if SV-snapshot reload
+— are both fixed (see NAJAEDA_NOTES.md). The snapshot round-trip
+(`tests/test_zz_snapshot.py`) is now a normal passing test.
