@@ -67,11 +67,16 @@ question×arm, plus `summary.md` (per-question table + aggregate) and
 - **E2a (done):** snapshot-cached warm server (najaeda 0.7.4) + CVA6 bank
   authored and verified against the live `cva6-small` core (13 questions, every
   golden answer produced by the tools, not grep; see `questions/cva6.yaml`).
-- **E2b (needs `claude` CLI):** run both arms on UART + `cva6-small`. Each arm-A
-  run reuses the cached snapshot (~20 s warm start). Spends Claude usage.
-- **E3:** write up correctness/token/turn deltas by category and design,
-  including the intent-question baseline that justifies/kills phase 2. Re-verify
-  numeric goldens against `cva6-full` before the headline run (config differs).
+- **E2b (done):** ran both arms on UART (9 Q) and `cva6-small` (13 Q) on
+  2026-06-20 (claude 2.1.185, opus-4-8). Headline: scope 12/13 vs grep 6/13 on
+  CVA6, at ~0.55x input tokens; near-tie on UART. Raw JSON under
+  `eval/results/` (gitignored).
+- **E3 (done):** write-up in `eval/RESULTS.md` — deltas by category/design, the
+  intent-question phase-2 baseline, and honest failures.
+- **Remaining:** re-verify numeric goldens against `cva6-full`
+  (cv64a6_imafdc_sv39; widths/counts differ) and run the headline once; fix the
+  `trace_cone` cross-hierarchy-frontier affordance behind `cva6-div-cone-crosshier`
+  (defeated both arms at max-turns) before re-scoring that question.
 
 ## Notes
 
