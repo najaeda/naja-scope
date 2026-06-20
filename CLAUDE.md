@@ -18,9 +18,13 @@ architecture, scope, phasing, and the tool API.
   layer.) If a capability is missing from raw naja, it becomes a naja feature
   request (local checkout: /Users/xtof/WORK/naja2) — no private hooks, no naja
   C++ build dependency in this repo.
-- Dependency: requires `najaeda>=0.7.2` (the source-access API — source ranges
-  / `getSourceLoc`, naja #389/#390 — shipped to PyPI in 0.7.2). Pin it in
-  `pyproject.toml`. Earlier 0.5.x lacks the API. See DESIGN.md fact 2 / Week 0.
+- Dependency: requires `najaeda>=0.7.4`. The source-access API (source ranges
+  / `getSourceLoc`, naja #389/#390) shipped to PyPI in 0.7.2, but the pin floor
+  is 0.7.4 because that release fixes the naja-if snapshot reload for
+  SystemVerilog-loaded designs (the "model not found" deserialize bug present
+  0.5.2–0.7.3) — the re-entrant RTLInfos persistence path. Pin it in
+  `pyproject.toml`. Earlier 0.5.x lacks the source-access API entirely. See
+  DESIGN.md fact 2 / Week 0 and NAJAEDA_NOTES.md bug §3.
 - Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
   slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
   passes.

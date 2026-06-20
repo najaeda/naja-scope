@@ -10,7 +10,7 @@ readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
 dependencies = [
-    "najaeda>=0.7.3",
+    "najaeda>=0.7.4",
     "mcp>=1.2",
 ]
 

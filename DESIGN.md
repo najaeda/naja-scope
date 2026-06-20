@@ -22,7 +22,7 @@ The product is **~12 MCP tools plus a discipline about response sizes**, not a g
    - **Native low-level API** (`naja` module / PySNL): `SNLDesign` and `SNLDesignObject` now expose `hasSourceLoc()` and `getSourceLoc()`. `getSourceLoc()` returns a tuple `(file, line, column, end_line, end_column)` (or `None`). This is the first-level access naja-scope should build on.
    - **High-level najaeda API**: a frozen `SourceRange` dataclass (`file, line, end_line, column, end_column`) plus `get_source_range()` on `Instance`, `Term`, and `Net`, each returning `Optional[SourceRange]`.
    - Footgun to note: the native tuple order is `(file, line, column, end_line, end_column)` but the `SourceRange` dataclass field order is `(file, line, end_line, column, end_column)`. The najaeda wrapper remaps correctly; code using the native API directly must respect the tuple order.
-2. **This API is now on PyPI as najaeda 0.7.2** (published 2026-06-16; verified to ship both the native `getSourceLoc()`/`hasSourceLoc()` and the high-level `SourceRange` + `get_source_range()`). The earlier gap (0.5.2 predated #389/#390) is closed — Week 0 collapses to a single `najaeda>=0.7.2` pin in `pyproject.toml`. No local build required.
+2. **This API is now on PyPI as najaeda 0.7.2** (published 2026-06-16; verified to ship both the native `getSourceLoc()`/`hasSourceLoc()` and the high-level `SourceRange` + `get_source_range()`). The earlier gap (0.5.2 predated #389/#390) is closed — Week 0 collapses to a single pin in `pyproject.toml`. No local build required. **The pin floor is `najaeda>=0.7.4`**, not 0.7.2: 0.7.4 additionally fixes the naja-if snapshot reload for SystemVerilog-loaded designs (the "model not found" deserialize bug present 0.5.2–0.7.3), which is the only re-entrant RTLInfos persistence path (see §5 and NAJAEDA_NOTES.md bug §3).
 3. `load_system_verilog` can emit the Slang elaborated AST as JSON with source info (`SystemVerilogConfig.elaborated_ast_json_path`, `include_source_info_in_elaborated_ast_json`). A source-intent layer exists as a byproduct.
 4. A prototype najaeda MCP server already exists (load_verilog, load_liberty, load_primitives, top_summary, list_child_instances, instance_stats, dump_naja_if, load_naja_if, reset_universe). The MVP is an extension of it.
 5. naja-if (Cap'n Proto) snapshots give fast session reload, avoiding re-elaboration.
@@ -134,7 +134,7 @@ One sentence: *the only open, pip-installable system where an agent can traverse
 
 ## 9. MVP (2–4 weeks)
 
-**Week 0 — done:** the source-access API shipped in najaeda 0.7.2 on PyPI (see fact 2). Pin `najaeda>=0.7.2` in `pyproject.toml`; no local build, no release to cut. The MVP is unblocked.
+**Week 0 — done:** the source-access API shipped in najaeda 0.7.2 on PyPI (see fact 2). Pin `najaeda>=0.7.4` in `pyproject.toml` (0.7.4 also fixes the snapshot-reload bug — fact 2); no local build, no release to cut. The MVP is unblocked.
 
 - **Week 1:** ~~expose source info through Python~~ — **done in naja (#389/#390), shipped in najaeda 0.7.2**. Build the source-access into the tools directly: `get_source` now reads `Instance/Term/Net.get_source_range()` (high-level) or `getSourceLoc()` (native). Add `resolve`, `get_drivers`, `get_loads`, `get_source`, `find` to the existing MCP server.
 - **Week 2:** `trace_cone` (stop-at-flops, hard max_nodes), deterministic `get_module_card`, pagination everywhere.

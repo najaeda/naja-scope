@@ -50,18 +50,18 @@ use case.
    truth-table-free stats walker (`api.get_stats`). The exception should be
    translated to a Python exception, and `is_buf/is_const/is_inv` should
    return False for multi-output primitives.
-3. **naja-if snapshots of SV-loaded designs do not reload** *(still in
-   0.7.3; reverified 2026-06-18)*: `dump_naja_if` + `reset` + `load_naja_if` fails with
+3. **naja-if snapshots of SV-loaded designs do not reload** *(0.5.2 through
+   0.7.3 — FIXED in 0.7.4)*: `dump_naja_if` + `reset` + `load_naja_if` failed with
    `cannot deserialize instance 0: model not found (reference dbID ...)` for
-   designs lowered from SystemVerilog (works for the trivial counter-only
-   design; fails as soon as comparisons/assigns appear, with or without
-   `keep_assigns`). 15-line repro: load `bisect1.sv` (a counter plus
-   `assign tick = (count == 8'hFF)`), dump, reset, load. Likely instances
-   referencing models in the universe DB (NLDB0) that are not serialized.
-   Tracked by `tests/test_zz_snapshot.py::test_snapshot_reload_roundtrip`
-   (strict xfail). **Critical path:** per the
+   designs lowered from SystemVerilog (worked for the trivial counter-only
+   design; failed as soon as comparisons/assigns appeared, with or without
+   `keep_assigns`). The 15-line repro — load `bisect1.sv` (a counter plus
+   `assign tick = (count == 8'hFF)`), dump, reset, load — now round-trips on
+   0.7.4. Tracked by `tests/test_zz_snapshot.py::test_snapshot_reload_roundtrip`
+   (now a normal passing test; the strict xfail marker was removed). **Critical
+   path, now unblocked:** per the
    [§ Design proposal scope decision](#scope-decision-2026-06-14-one-producer-one-re-entrant-path),
-   naja-if is the only re-entrant path for RTLInfos, so this bug also blocks
+   naja-if is the only re-entrant path for RTLInfos, so this fix also unblocks
    source-info persistence — not just fast reload.
 4. **`Instance.get_design()` raises on top** *(still in 0.7.0)*:
    `IndexError: pop from empty list` when called on the top instance
@@ -105,14 +105,16 @@ model:
 
 1. **RTLInfos must serialize to capnp** (Proposal A, Level 0 serialization
    half). It is now the *only* persistence mechanism, not an optimization.
-2. **The naja-if SV-snapshot reload bug must be fixed** (Bugs §3 — currently
-   `cannot deserialize instance 0: model not found`). With Verilog round-trip
-   off the table, a broken naja-if reload means RTLInfos cannot persist *at
-   all*. Bug §3 is therefore a blocker for the persistence story, not just a
-   fast-reload convenience.
+2. **The naja-if SV-snapshot reload bug must be fixed** (Bugs §3 —
+   `cannot deserialize instance 0: model not found`, **FIXED in 0.7.4**). With
+   Verilog round-trip off the table, a broken naja-if reload meant RTLInfos
+   could not persist *at all*. Bug §3 was therefore a blocker for the
+   persistence story, not just a fast-reload convenience.
 
-Until both land, naja-scope keeps its in-session `source_index.py` bridge and
-treats snapshot reload as unavailable (its strict xfail stands).
+Item 2 landed in najaeda 0.7.4: SV-snapshot reload now round-trips, so naja-if
+serialization is a real RTLInfos persistence path. naja-scope still builds the
+`source_index.py` sidecar (it carries the resolved-path bridge alongside the
+snapshot), and `test_snapshot_reload_roundtrip` is now a normal passing test.
 
 ### What exists today
 

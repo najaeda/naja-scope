@@ -5,8 +5,6 @@ other files share."""
 
 import os
 
-import pytest
-
 from naja_scope import api
 
 
@@ -21,11 +19,6 @@ def test_save_snapshot_writes_netlist_and_sidecar(uart_session, tmp_path):
     assert "naja_scope_session.json" in files
 
 
-@pytest.mark.xfail(
-    reason="najaeda 0.5.2 through 0.7.3: naja-if snapshots of SV-loaded "
-           "designs fail to deserialize ('model not found'); reverified on "
-           "0.7.3 (2026-06-18); see NAJAEDA_NOTES.md",
-    strict=True)
 def test_snapshot_reload_roundtrip(uart_session, tmp_path):
     snap = str(tmp_path / "snap2")
     os.makedirs(snap, exist_ok=True)

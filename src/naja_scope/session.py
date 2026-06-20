@@ -110,16 +110,7 @@ class Session:
     def load_snapshot(self, directory: str) -> "snl.InstNode":
         if not os.path.isdir(directory):
             raise ScopeError(f"Snapshot directory not found: {directory}")
-        try:
-            loader.load_naja_if(directory)
-        except RuntimeError as e:
-            if "model not found" in str(e):
-                raise ScopeError(
-                    f"naja-if reload failed: {e}. Known najaeda issue "
-                    "(0.5.2 through 0.7.3): snapshots of SystemVerilog-loaded "
-                    "designs do not round-trip (see NAJAEDA_NOTES.md). "
-                    "Re-elaborate with load_systemverilog instead.")
-            raise
+        loader.load_naja_if(directory)
         self.naming_stats = ensure_names()
         sidecar = os.path.join(directory, _SIDECAR_NAME)
         self.source_index = SourceIndex.load(sidecar) if os.path.isfile(
