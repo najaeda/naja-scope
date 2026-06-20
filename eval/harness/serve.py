@@ -2,10 +2,14 @@
 """Warm naja-scope server for the eval (arm A).
 
 Loads a design ONCE, then serves the registered naja-scope MCP tools so every
-eval question reuses the warm session. This is required because (a) CVA6 takes
-8-68 min to elaborate and (b) the naja-if snapshot reload bug means a fresh
-elaboration is the only way back in (memory `cva6-elaboration-via-naja-scope`),
-so re-spawning a stdio server per `claude -p` is untenable.
+eval question reuses the warm session. This is required because CVA6 takes
+8-68 min to elaborate, so re-spawning a stdio server per `claude -p` is
+untenable.
+
+najaeda 0.7.4 fixes SV-snapshot reload, so the first elaboration is saved to a
+naja-if snapshot cache (designs.snapshot_dir) and reloaded in seconds on every
+later warm-server start — the DESIGN.md §5 amortization. Pass --refresh-cache
+to force re-elaboration (e.g. after the source tree changes).
 
 Transports:
   --transport sse     long-lived daemon; point Claude Code's MCP client at the
@@ -41,14 +45,25 @@ import designs as design_registry  # noqa: E402
 from naja_scope import api, server  # noqa: E402
 
 
-def load_design(design_key: str) -> dict:
+def load_design(design_key: str, refresh_cache: bool = False) -> dict:
     spec = design_registry.get(design_key)
     for k, v in spec["env"].items():
         os.environ.setdefault(k, v)
-    load = spec["load"]
+    cache = design_registry.snapshot_dir(design_key)
+    cached = os.path.isfile(os.path.join(cache, "snl.mf"))
     t0 = time.time()
-    res = api.load_systemverilog(
-        files=load.get("files"), flist=load.get("flist"), top=spec.get("top"))
+    if cached and not refresh_cache:
+        res = api.load_snapshot(cache)
+        res["source"] = "snapshot"
+    else:
+        load = spec["load"]
+        api.load_systemverilog(
+            files=load.get("files"), flist=load.get("flist"),
+            top=spec.get("top"))
+        os.makedirs(cache, exist_ok=True)
+        api.save_snapshot(cache)
+        res = api.status()
+        res["source"] = "elaborated"
     res["load_seconds"] = round(time.time() - t0, 2)
     res["design"] = design_key
     res["label"] = spec["label"]
@@ -62,9 +77,11 @@ def main() -> None:
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--ready-file", default=None)
+    ap.add_argument("--refresh-cache", action="store_true",
+                    help="ignore any cached snapshot and re-elaborate from source")
     args = ap.parse_args()
 
-    summary = load_design(args.design)
+    summary = load_design(args.design, refresh_cache=args.refresh_cache)
     if args.transport == "sse":
         server.mcp.settings.host = args.host
         server.mcp.settings.port = args.port

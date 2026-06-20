@@ -119,7 +119,8 @@ Conventions (matter more than the tool list): object references are hierarchical
 
 **No LLM at indexing time for v1.** Cost scales with design size; summaries go stale on every edit; hallucinated summaries silently poison agent reasoning; the querying agent is already a frontier model.
 
-- Always deterministic: connectivity, hierarchy, names, source ranges, counts, clock/reset identification, port lists, parameter values, truth tables. Protocol detection by port-name/direction patterns gets ~80–90% at zero tokens — label it a guess.
+- Always deterministic: connectivity, hierarchy, names, source ranges, counts, port lists, parameter values, truth tables.
+- Name-based guesses (label them as such — never deterministic): clock/reset identification and reset polarity, and protocol detection by port-name/direction patterns (~80–90% at zero tokens). **Clock/reset detection by name is a workaround.** Names are conventions, not semantics; the sound source is SDC (`create_clock` …) constraints plus back-propagation from the clock/reset pins of sequential cells, never the signal name. The `get_module_card` clock/reset fields are flagged `name_based_workaround` until structural detection lands (needs naja to expose FF clock/reset pin roles + SDC ingest).
 - Defensible LLM uses (lazy, cached by content hash): module purpose summaries on first get_module_card, cone explanations on demand, protocol fallback for nonstandard naming.
 - Local LLM: only interesting for the confidentiality story; build when a customer asks.
 

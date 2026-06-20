@@ -20,6 +20,11 @@ import os
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _FIXTURES = os.path.join(_REPO, "tests", "fixtures")
 _QDIR = os.path.join(_REPO, "eval", "questions")
+# naja-if snapshot cache (gitignored). Since najaeda 0.7.4 fixes SV-snapshot
+# reload, a design is elaborated once and reloaded in seconds thereafter — the
+# DESIGN.md §5 amortization that lets E2 authoring and E3 re-runs skip the
+# 8-68 min CVA6 elaboration.
+_CACHE = os.path.join(_REPO, "eval", ".cache")
 
 CVA6_REPO = "/Users/xtof/WORK/cva6"
 _CVA6_FLIST = os.path.join(CVA6_REPO, "core", "Flist.cva6")
@@ -51,7 +56,7 @@ DESIGNS = {
         "env": _cva6_env("cv32a6_imac_sv32"),
         "source_root": CVA6_REPO,
         "questions": os.path.join(_QDIR, "cva6.yaml"),
-        "expect_load_seconds": 500,
+        "expect_load_seconds": 750,  # measured ~749s first elaboration; ~20s from snapshot
     },
     "cva6-full": {
         "label": "CVA6 cv64a6_imafdc_sv39 (headline)",
@@ -70,3 +75,8 @@ def get(design_key: str) -> dict:
         raise SystemExit(
             f"Unknown design '{design_key}'. Known: {', '.join(DESIGNS)}")
     return DESIGNS[design_key]
+
+
+def snapshot_dir(design_key: str) -> str:
+    """naja-if snapshot cache directory for a design (gitignored)."""
+    return os.path.join(_CACHE, design_key, "snapshot")

@@ -1,16 +1,175 @@
 # Golden-answer bank for CVA6 (cv32a6_imac_sv32 for dev, cv64a6_imafdc_sv39 for
-# the headline run). DELIBERATELY EMPTY until phase E2: golden answers MUST be
-# verified against the live elaborated core (warm server) before they are
-# trusted — authoring CVA6 answers from memory or from grep would defeat the
-# eval. See DESIGN.md §9 and the E2 step in eval/README.md.
+# the headline run). Every golden answer below was VERIFIED against the live
+# elaborated cv32a6_imac_sv32 core via the naja-scope warm server on 2026-06-20
+# (snapshot cache eval/.cache/cva6-small; probes in /tmp/cva6_probe*.json at
+# authoring time). Authoring CVA6 answers from memory or grep would defeat the
+# eval, so each number/path here came out of the tools, not the source.
 #
 # Target mix (DESIGN.md §9): connectivity/drivers, cross-hierarchy cones
 # (stop-at-flops), hierarchy/structure counts, source back-links, plus a few
-# intent-class questions (FSM/enum state names, reset polarity, symbolic
-# parameter meaning) answered the phase-1 way to baseline phase 2. Skew toward
-# questions where grep is *wrong*, not merely slow (post-elaboration
-# connectivity, generate/parameterized wiring).
+# intent-class questions (FSM state names, reset polarity) answered the phase-1
+# way to baseline phase 2. Skewed toward questions where grep is *wrong*, not
+# merely slow (post-elaboration connectivity, uniquification, flattened counts).
+#
+# NOTE: these golden answers are for the cv32a6_imac_sv32 config. The headline
+# cva6-full run (cv64a6_imafdc_sv39) changes widths/counts (e.g. sequential
+# totals, FSM register widths), so numeric goldens must be re-verified against
+# the full core before trusting a cva6-full run. Structural/connectivity facts
+# (which submodule drives a port, reset polarity, uniquification) carry over.
+#
+# Fields: id, category, intent (true = phase-1-only intent question, baselines
+# phase 2), question, golden (human-readable truth), check (see score.py).
 
 design: cva6
 
-questions: []
+questions:
+  - id: cva6-top-submodules
+    category: hierarchy
+    intent: false
+    question: >
+      Excluding `assign` glue and leaf primitives, which real submodule
+      instances are instantiated directly inside the top `cva6` module? Name the
+      pipeline-stage submodules in particular.
+    golden: >
+      Ten real submodules: i_frontend (frontend), id_stage_i (id_stage),
+      issue_stage_i (issue_stage), ex_stage_i (ex_stage), commit_stage_i
+      (commit_stage), csr_regfile_i (csr_regfile), the perf_counters,
+      controller_i (controller), the hpdcache cache subsystem, and the rvfi
+      probes.
+    check: {type: contains_all, terms: [frontend, id_stage, issue_stage, ex_stage, commit_stage]}
+
+  - id: cva6-commit-no-regs
+    category: structure
+    intent: false
+    question: >
+      How many flip-flop / register-group (sequential primitive) instances does
+      the commit_stage subtree (instance commit_stage_i) contain when flattened?
+    golden: >
+      0 - commit_stage is purely combinational; its flattened subtree contains
+      no flip-flop/register primitives (flat_sequential = 0).
+    check: {type: numeric, value: 0, tol: 0}
+
+  - id: cva6-ex-seq-count
+    category: structure
+    intent: false
+    question: >
+      How many flip-flop / register-group (sequential primitive) instances are
+      in the ex_stage subtree (instance ex_stage_i), flattened across its whole
+      hierarchy?
+    golden: "92 sequential register groups in the flattened ex_stage_i subtree."
+    check: {type: numeric, value: 92, tol: 0}
+
+  - id: cva6-core-seq-count
+    category: structure
+    intent: false
+    question: >
+      How many flip-flop / register-group (sequential primitive) instances does
+      the entire flattened cva6 core contain? (Count register groups, not
+      individual bits.)
+    golden: "808 sequential register groups across the whole flattened core."
+    check: {type: numeric, value: 808, tol: 0}
+
+  - id: cva6-uniquify-mux
+    category: structure
+    intent: false
+    question: >
+      After elaboration, how many distinct elaborated module variants of
+      `hpdcache_mux` exist (counting the base module and every uniquified
+      specialization)?
+    golden: >
+      20 distinct variants: the base hpdcache_mux plus hpdcache_mux__elab1
+      through hpdcache_mux__elab19 (19 uniquified specializations).
+    check: {type: any_of, groups: [["20"], ["19", "base"]]}
+
+  - id: cva6-noc-driver
+    category: connectivity
+    intent: false
+    question: >
+      Which submodule of the core ultimately drives the top-level output port
+      noc_req_o?
+    golden: >
+      The hpdcache cache subsystem - specifically the AXI arbiter's
+      i_hpdcache_mem_to_axi_write path (assigns in
+      cache_subsystem/hpdcache/.../hpdcache_mem_to_axi_write.sv).
+    check: {type: any_of, groups: [["hpdcache"], ["cache subsystem"], ["axi arbiter"]]}
+
+  - id: cva6-div-state-driver
+    category: connectivity
+    intent: false
+    question: >
+      Which primitive directly drives the serial-divider FSM state register
+      cva6.ex_stage_i.i_mult.i_div.state_q, and in which SystemVerilog source
+      file is that register defined?
+    golden: >
+      A naja_dffrn__w2 (a 2-bit asynchronous-reset flip-flop), instance
+      state_q_dffrn__w2; the register is defined in serdiv.sv (declared at
+      serdiv.sv:62, updated by the always_ff at serdiv.sv:248-274).
+    check: {type: any_of, groups: [["dffrn", "serdiv.sv"]]}
+
+  - id: cva6-div-state-width
+    category: parameters
+    intent: false
+    question: >
+      What is the bit width of the serial-divider FSM state register
+      cva6.ex_stage_i.i_mult.i_div.state_q?
+    golden: "2 bits (state_q is [1:0], i.e. up to 4 FSM states)."
+    check: {type: numeric, value: 2, tol: 0}
+
+  - id: cva6-ptw-source
+    category: source
+    intent: false
+    question: >
+      Which source file and line range contains the always_ff block that
+      updates the page-table-walker FSM state register (the i_ptw instance
+      inside the MMU)? Answer as file:line-range.
+    golden: "core/cva6_mmu/cva6_ptw.sv:659-699 (the PTW sequential always_ff)."
+    check: {type: regex, pattern: 'cva6_ptw\.sv:6[0-9][0-9]'}
+
+  - id: cva6-reset-polarity
+    category: intent
+    intent: true
+    question: >
+      Is the reset of the page-table walker (module cva6_ptw) active-high or
+      active-low, and what is the reset signal called?
+    golden: >
+      Active-low; the reset is rst_ni (asynchronous: the always_ff is
+      `@(posedge clk_i or negedge rst_ni)` with `if (~rst_ni)`, resetting
+      state_q to IDLE).
+    check: {type: any_of, groups: [["active-low", "rst_ni"], ["active", "low", "rst_ni"]]}
+
+  - id: cva6-ptw-fsm-states
+    category: intent
+    intent: true
+    question: >
+      The page-table-walker (cva6_ptw) FSM state register is how many bits wide,
+      and what is its reset (initial) state called?
+    golden: >
+      3-bit state register (state_q[2:0]); its reset/initial state is IDLE. The
+      other symbolic state-enum names are lost in lowering (enum -> bits) - a
+      phase-1 limitation; only IDLE survives because it appears literally in the
+      always_ff reset branch.
+    check: {type: any_of, groups: [["idle"]]}
+
+  - id: cva6-div-cone-crosshier
+    category: connectivity
+    intent: false
+    question: >
+      Trace the fan-in cone (stopping at flip-flops) of the serial-divider FSM
+      next-state cva6.ex_stage_i.i_mult.i_div.state_d. Does it depend on
+      register state outside the EX stage? If so, name at least one such
+      register or module.
+    golden: >
+      Yes - the cone's flop frontier reaches registers outside EX, e.g.
+      csr_regfile_i.priv_lvl_q and issue_stage_i.i_scoreboard (commit_pointer_q,
+      mem_q). The divider's next state is gated by core-global state, which a
+      purely textual grep of serdiv.sv cannot reveal.
+    check: {type: any_of, groups: [["csr"], ["scoreboard"], ["priv_lvl"], ["issue_stage"]]}
+
+  - id: cva6-serdiv-adders
+    category: structure
+    intent: false
+    question: >
+      How many full-adder (naja_fa) primitive instances does the serial-divider
+      module `serdiv` contain?
+    golden: "108 naja_fa full-adder primitives in serdiv."
+    check: {type: numeric, value: 108, tol: 0}

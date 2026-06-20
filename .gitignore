@@ -7,3 +7,4 @@ __pycache__/
 naja_perf.log
 eval/results/
 eval/.scratch/
+eval/.cache/

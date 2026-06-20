@@ -34,7 +34,8 @@ eval/
   (not required for `--dry-run`).
 - CVA6 source at `/Users/xtof/WORK/cva6` (the `cva6-grenoble` checkout's
   hpdcache submodule is uninitialized — do not use it). Designs `cva6-small`
-  (cv32a6_imac_sv32, ~8 min load) and `cva6-full` (cv64a6_imafdc_sv39, ~68 min).
+  (cv32a6_imac_sv32, ~12–13 min first elaboration, then ~20 s from the snapshot
+  cache) and `cva6-full` (cv64a6_imafdc_sv39, ~68 min first elaboration).
 
 ## Run
 
@@ -47,11 +48,13 @@ eval/
 CLAUDE_BIN=/path/to/claude \
   ./.venv/bin/python eval/harness/run_eval.py --design uart --arm both
 
-# 3. CVA6 dev run (small config; warm server pays ~8 min once for arm A):
+# 3. CVA6 dev run (small config; warm server elaborates ~12-13 min the first
+#    time, then reloads in ~20s from eval/.cache/cva6-small on later runs):
 CLAUDE_BIN=/path/to/claude \
   ./.venv/bin/python eval/harness/run_eval.py --design cva6-small --arm both
 
-# headline run: --design cva6-full  (warm server loads ~68 min once)
+# headline run: --design cva6-full  (first elaboration ~68 min, then cached)
+# pass --refresh-cache to force re-elaboration after the CVA6 source changes
 ```
 
 Outputs land in `eval/results/<design>_<timestamp>/`: one JSON per
@@ -61,14 +64,21 @@ question×arm, plus `summary.md` (per-question table + aggregate) and
 ## Phasing
 
 - **E1 (done):** harness + UART bank (verified) + scoring + warm server.
-- **E2:** author/verify the CVA6 bank against the warm `cva6-small` server,
-  then run both arms on UART + CVA6.
+- **E2a (done):** snapshot-cached warm server (najaeda 0.7.4) + CVA6 bank
+  authored and verified against the live `cva6-small` core (13 questions, every
+  golden answer produced by the tools, not grep; see `questions/cva6.yaml`).
+- **E2b (needs `claude` CLI):** run both arms on UART + `cva6-small`. Each arm-A
+  run reuses the cached snapshot (~20 s warm start). Spends Claude usage.
 - **E3:** write up correctness/token/turn deltas by category and design,
-  including the intent-question baseline that justifies/kills phase 2.
+  including the intent-question baseline that justifies/kills phase 2. Re-verify
+  numeric goldens against `cva6-full` before the headline run (config differs).
 
 ## Notes
 
-- The naja-if snapshot reload bug (xfail) means CVA6 can't be cached; the warm
-  server elaborates once and is shared across all arm-A questions — never
-  re-spawn it per question.
+- najaeda 0.7.4 fixes SV-snapshot reload, so the warm server elaborates a
+  design once, caches a naja-if snapshot under `eval/.cache/<design>/`, and
+  reloads it in seconds on every later start (DESIGN.md §5). Pass
+  `--refresh-cache` to force re-elaboration after the source tree changes.
+  The warm server is still loaded once and shared across all arm-A questions —
+  never re-spawn it per question.
 - Agents are told to end with `ANSWER: <...>`; scoring reads that line.

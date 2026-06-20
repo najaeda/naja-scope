@@ -14,8 +14,24 @@ def test_module_card(uart_session):
     assert card["clock_candidates"] == ["clk"]
     assert card["reset_candidates"][0]["name"] == "rst_n"
     assert card["reset_candidates"][0]["active_low_guess"] is True
+    # clock/reset detection is a name-based workaround, flagged as such.
+    assert card["name_based_workaround"] == [
+        "clock_candidates", "reset_candidates"]
     assert card["counts"]["sequential_instances"] > 0
     assert "uart.sv" in card.get("src", "")
+
+
+def test_active_low_guess():
+    from naja_scope.cards import _active_low_guess
+    # Active-low: lowRISC/CVA6 `_ni` direction suffix, plain `_n`, and `resetn`.
+    assert _active_low_guess("rst_ni") is True
+    assert _active_low_guess("arst_ni") is True
+    assert _active_low_guess("rst_n") is True
+    assert _active_low_guess("resetn") is True
+    # Active-high: bare names must not be guessed active-low.
+    assert _active_low_guess("rst") is False
+    assert _active_low_guess("reset") is False
+    assert _active_low_guess("rst_i") is False
 
 
 def test_module_card_suggestions(uart_session):

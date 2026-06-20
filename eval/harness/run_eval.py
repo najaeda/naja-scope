@@ -121,9 +121,11 @@ def parse_claude_json(stdout: str) -> dict:
 # -- warm server (arm A) -------------------------------------------------------
 
 class WarmServer:
-    def __init__(self, design_key, host, port, ready_timeout):
+    def __init__(self, design_key, host, port, ready_timeout,
+                 refresh_cache=False):
         self.design_key, self.host, self.port = design_key, host, port
         self.ready_timeout = ready_timeout
+        self.refresh_cache = refresh_cache
         self.proc = None
         self.ready = None
         self.ready_file = tempfile.mktemp(suffix=".ready.json")
@@ -145,6 +147,8 @@ class WarmServer:
                "--design", self.design_key, "--transport", "sse",
                "--host", self.host, "--port", str(self.port),
                "--ready-file", self.ready_file]
+        if self.refresh_cache:
+            cmd.append("--refresh-cache")
         print(f"[warm] starting: {' '.join(cmd)}", file=sys.stderr)
         self.proc = subprocess.Popen(cmd, env=os.environ.copy())
         t0 = time.time()
@@ -235,6 +239,8 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--warm-ready-timeout", type=int, default=4500)
+    ap.add_argument("--refresh-cache", action="store_true",
+                    help="force arm-A warm server to re-elaborate (ignore snapshot cache)")
     args = ap.parse_args()
 
     bank = load_bank(args.design)
@@ -266,7 +272,8 @@ def main():
     try:
         if "A" in arms:
             warm = WarmServer(args.design, args.host, args.port,
-                              args.warm_ready_timeout)
+                              args.warm_ready_timeout,
+                              refresh_cache=args.refresh_cache)
             warm.start()
             mcp_config_path = warm.mcp_config()
         for q in bank:
