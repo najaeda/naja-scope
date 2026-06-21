@@ -137,7 +137,11 @@ def trace_cone(path: str, direction: str, stop: str = "flops",
                max_nodes: int = 200, include_edges: bool = True) -> dict:
     """Trace the fanin/fanout cone of a term/net. direction: fanin|fanout.
     stop: flops|none. Returns nodes, edges, frontier, counts_by_model;
-    hard-capped by max_nodes (<=1000) with truncation markers."""
+    hard-capped by max_nodes (<=1000) with truncation markers.
+    frontier_summary groups the stop-at-flops frontier by top-level submodule
+    and, under outside_root_subtree, names the frontier registers that live
+    OUTSIDE the cone root's own subtree (the cross-hierarchy answer) — read it
+    directly instead of re-deriving subtrees from the flat frontier list."""
     return api.trace_cone(path, direction, stop, max_nodes, include_edges)
 
 

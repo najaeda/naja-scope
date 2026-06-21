@@ -44,6 +44,21 @@ def test_cone_fanin_stops_at_flops(uart_session):
     assert out["truncated"] is False
 
 
+def test_cone_frontier_summary_groups_by_subtree(uart_session):
+    out = api.trace_cone("uart_top.u_tx.state_n", "fanin", stop="flops")
+    summ = out["frontier_summary"]
+    # Root lives in the u_tx subtree; the summary is anchored there.
+    assert summ["root_subtree"] == "uart_top.u_tx"
+    # Per-subtree counts add up to the flop frontier total.
+    assert summ["flop_frontier_count"] == sum(
+        b["count"] for b in summ["by_subtree"].values())
+    # Anything in by_subtree other than the root subtree is reported as outside.
+    expect_outside = sum(c["count"] for k, c in summ["by_subtree"].items()
+                         if k != summ["root_subtree"])
+    assert summ["outside_root_subtree"]["count"] == expect_outside
+    assert summ["root_subtree"] not in summ["outside_root_subtree"]["subtrees"]
+
+
 def test_cone_max_nodes_truncates(uart_session):
     out = api.trace_cone("uart_top.u_tx.state_n", "fanin", stop="none",
                          max_nodes=2)

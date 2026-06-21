@@ -68,12 +68,19 @@ lands on the exact range, grep finds it too on a navigable tree.
 
 ## Honest failures / to-dos
 
-1. **`cva6-div-cone-crosshier` defeated both arms** (max-turns 12, no answer).
-   Scope *should* win this — the whole point of `trace_cone` is the
-   cross-hierarchy flop frontier — but the agent did not converge in budget.
-   Likely the cone response needs to surface the out-of-EX frontier registers
-   more directly (and/or the eval needs a higher turn budget for cone
-   questions). This is a tool/affordance gap, not a grep win.
+1. ~~**`cva6-div-cone-crosshier` defeated both arms** (max-turns 12, no
+   answer).~~ **FIXED (2026-06-21).** The original failure was a tool/affordance
+   gap, not a grep win: the cross-hier frontier was present in `trace_cone`'s
+   flat `frontier` list, but the agent burned the turn budget re-deriving each
+   path's subtree by hand against a multi-KB node dump. `trace_cone` now returns
+   a `frontier_summary` that groups the stop-at-flops frontier by top-level
+   submodule and, under `outside_root_subtree`, names the frontier registers
+   outside the cone root's own subtree directly (counts + a few example paths,
+   token-bounded per DESIGN.md §4). Re-run on the warm `cva6-small` server (arm
+   A): correct, 13 turns, clean finish (not a max-turns abort) — the agent read
+   the cross-hier answer (`csr_regfile_i`, `issue_stage_i`, incl. `priv_lvl_q`)
+   straight out of the summary. See `cone.py:_frontier_summary` and the
+   `test_cone_frontier_summary_groups_by_subtree` regression test.
 2. **`in_tok` understates grep's cost.** The bulk is cache-read source
    (1.88M for grep vs 1.04M for scope); even discounted, it is the context
    bloat the tool layer avoids, and it grows with design size while scope's
@@ -86,5 +93,7 @@ uniquification class that motivated the project, with a clean ~2x accuracy and
 ~0.55x token profile. The small-design near-tie and the intent-question cost are
 expected and honest, and they scope phase 2 rather than undercut phase 1. Next:
 re-verify the numeric goldens against `cva6-full` (cv64a6_imafdc_sv39; widths
-and counts differ) and run the headline once; fix the cone affordance behind
-`cva6-div-cone-crosshier` before re-scoring that question.
+and counts differ) and run the headline once. The cone affordance behind
+`cva6-div-cone-crosshier` is now fixed (see Honest failures item 1) and that
+question passes on the warm `cva6-small` server — bringing scope to 13/13 on the
+small core — so it is ready to re-score in the next full headline run.

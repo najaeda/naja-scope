@@ -31,6 +31,61 @@ def _bits_of(resolved: Resolved) -> List:
                      "term or net.")
 
 
+def _subtree_key(path: str) -> str:
+    """Top-level submodule a hierarchical path lives in: `top.<submodule>`.
+
+    `cva6.ex_stage_i.i_mult.i_div.state_q` -> `cva6.ex_stage_i`. A path sitting
+    directly under the top (`cva6.some_reg`) yields just the top name.
+    """
+    segs = path.split(".")
+    return ".".join(segs[:2]) if len(segs) >= 3 else segs[0]
+
+
+def _frontier_summary(root_path: str, frontier: List[dict]) -> dict:
+    """Group the stop-at-flops frontier by top-level submodule and flag the
+    registers outside the cone root's own subtree.
+
+    This is the cross-hierarchy affordance: the agent's recurring question is
+    "does this cone reach register state outside <stage>, and which?". Answering
+    it from the flat `frontier` list means re-deriving each path's subtree by
+    hand; this block does it once and names the out-of-subtree registers
+    directly. Token-bounded: per-subtree counts plus a few example paths, never
+    a full dump (DESIGN.md section 4).
+    """
+    root_subtree = _subtree_key(root_path)
+    by_subtree: Dict[str, dict] = {}
+    port_count = 0
+    for f in frontier:
+        if f.get("reason") == "port":
+            port_count += 1
+            continue
+        key = _subtree_key(f["path"])
+        bucket = by_subtree.setdefault(key, {"count": 0, "examples": []})
+        bucket["count"] += 1
+        if len(bucket["examples"]) < 3:
+            bucket["examples"].append(f["path"])
+
+    outside = {k: v for k, v in by_subtree.items() if k != root_subtree}
+    outside_examples: List[str] = []
+    for v in outside.values():
+        outside_examples.extend(v["examples"])
+
+    summary = {
+        "root_subtree": root_subtree,
+        "flop_frontier_count": sum(b["count"] for b in by_subtree.values()),
+        "by_subtree": dict(
+            sorted(by_subtree.items(), key=lambda kv: -kv[1]["count"])[:20]),
+        "outside_root_subtree": {
+            "count": sum(v["count"] for v in outside.values()),
+            "subtrees": sorted(outside.keys()),
+            "examples": outside_examples[:10],
+        },
+    }
+    if port_count:
+        summary["top_port_count"] = port_count
+    return summary
+
+
 def trace_cone(resolved: Resolved, session, direction: str,
                stop: str = "flops", max_nodes: int = DEFAULT_MAX_NODES,
                include_edges: bool = True) -> dict:
@@ -144,6 +199,7 @@ def trace_cone(resolved: Resolved, session, direction: str,
         "node_count": len(nodes),
         "nodes": list(nodes.values()),
         "frontier": frontier[:200],
+        "frontier_summary": _frontier_summary(resolved.path, frontier),
         "counts_by_model": dict(
             sorted(counts.items(), key=lambda kv: -kv[1])[:20]),
         "truncated": truncated or bool(queue),
