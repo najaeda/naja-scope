@@ -33,6 +33,29 @@ use case.
    (`src/naja_scope/naming.py`, derived from the driven net, e.g.
    `tx_o_dff`); doing this during lowering would make names canonical
    everywhere.
+4. **`SNLLogicalCone` must cross SV-lowered logic gates** *(0.7.5 — shipped but
+   blocked; the cone tool's intended C++ backend, requested in
+   `docs/naja-feature-request-SNLLogicalCone.md`)*. `naja.SNLLogicalCone`
+   (`(occurrence, FanIn|FanOut)`) crosses a leaf cell only when
+   `SNLDesign.hasModeling()` is true. SV lowering gives combinational **gate**
+   primitives (`and_2`, `or_2`, `not_1`, `and_3/5/8`, …) a `getTruthTable()` but
+   **no combinatorial-arc modeling** (`hasModeling()==False`); only `assign` and
+   `naja_mux2__w*` carry modeling. So the cone treats every and/or/not gate as
+   an opaque `blackbox` and stops there. Out-of-the-box repro (cv32a6_imac_sv32,
+   snapshot `eval/.cache/cva6-small`): fan-in of
+   `cva6.ex_stage_i.i_mult.i_div.state_d` = 83 nodes/bit, 2 flops, all inside
+   ex_stage — it does **not** reach the verified cross-hier frontier
+   (`csr_regfile_i.priv_lvl_q`, `issue_stage_i.i_scoreboard`), which the
+   hand-rolled equipotential `cone.py` reaches (491 nodes, 16-flop frontier, 10
+   outside ex_stage). This **fails the cone FR's own acceptance criteria 5 and
+   6**. Fix (either): SV lowering sets combinatorial arcs on gate primitives the
+   way it already does for assign/mux (it already sets their truth tables); or
+   `SNLLogicalCone` derives traversal from `getTruthTable()` when `hasModeling()`
+   is absent. **Consequence for naja-scope:** the planned
+   `cone.py`→`SNLLogicalCone` rewrite is deferred; `cone.py` stays equipotential-
+   based until this lands. No Python-side modeling-injection workaround is taken
+   (it would mutate the shared primitives library and only approximates the
+   verified frontier). Verified 2026-06-22 against najaeda 0.7.5.
 
 ## Bugs found
 

@@ -117,7 +117,9 @@ access to the pieces callers need:
   direction: `next` points one combinatorial step further from the root (FanIn:
   toward the driving sources; FanOut: toward the driven sinks); `prev` is the
   reverse, free to fill while building, so paths can be walked either way.
-- **Roots** — the start pin node(s).
+- **Root** — the single start pin. A cone is always rooted at **one bit**: the
+  start `SNLOccurrence` is a single-bit net component (a scalar term/net or one
+  bit of a bus). A caller wanting a bus cone builds one `SNLLogicalCone` per bit.
 - **Leaves** — the frontier: every `Flop` / `Ports` / `Blackbox` node. Recorded
   into a `leaves_` vector at creation time, so `getLeaves()` is O(1) with no
   re-scan — this is the "fast access to leaves" requirement.
@@ -140,7 +142,7 @@ are resolving, so every driver/port we find becomes an edge `parent → child`):
 ```
 nodes:   vector<Node>                       # index == NodeID
 indexOf: map<SNLOccurrence, NodeID>         # dedup -> shared DAG nodes
-roots, leaves: vector<NodeID>
+leaves:  vector<NodeID>
 expanded: set<NodeID>                        # internal nodes already walked through
 
 getOrCreate(occ, kind) -> NodeID:
@@ -153,11 +155,9 @@ addEdge(parentId, childId):                  # cone-outward
     nodes[parentId].next += childId          # (dedup edges)
     nodes[childId].prev  += parentId
 
-# seed: each start pin is a Root node; explore its net
-for start in starts:
-    rootId = getOrCreate(start, Root)
-    roots.push(rootId)
-    queue.push_back( (rootId, start) )       # (parent node, net-component occurrence)
+# seed: the single start bit is the Root node (id 0); explore its net
+rootId = getOrCreate(start, Root)            # start is one bit
+queue.push_back( (rootId, start) )           # (parent node, net-component occurrence)
 
 while queue not empty:
     (parentId, netOcc) = queue.pop_front()
@@ -243,15 +243,16 @@ class SNLLogicalCone {
     std::vector<NodeID> prev;        // edges cone-inward  (toward root); reverse of next
   };
 
-  // Direction is the only knob: the sequential/port/blackbox barrier is intrinsic.
+  // A cone is rooted at one bit: `start` is a single-bit net-component
+  // occurrence. Direction is the only other knob: the sequential/port/blackbox
+  // barrier is intrinsic.
   SNLLogicalCone(const SNLOccurrence& start, Direction direction);
-  SNLLogicalCone(const std::set<SNLOccurrence>& starts, Direction direction);
 
   Direction getDirection() const;
 
-  // The DAG. nodes[id] is addressed by NodeID; roots and leaves index into it.
+  // The DAG. nodes[id] is addressed by NodeID; root and leaves index into it.
   const std::vector<Node>&   getNodes()  const;   // whole graph
-  const std::vector<NodeID>& getRoots()  const;   // start pin node(s) — the apex
+  NodeID                     getRoot()   const;   // the single start-bit node — the apex
   const std::vector<NodeID>& getLeaves() const;   // O(1): the frontier (Flop/Ports/Blackbox)
 
   size_t getNodeCount() const;
@@ -281,7 +282,7 @@ exposes the DAG:
 - `.get_leaves()` — the frontier, what `cone.py` consumes first: each yields its
   `occurrence` and `kind`, the `kind` mapping to the `"flop" | "ports" |
   "blackbox"` strings `cone.py` uses.
-- `.get_roots()` — the start pin node(s).
+- `.get_root()` — the single start-bit node (the apex).
 - `.get_nodes()` / node `.next` / `.prev` (or a `.get_edges()` pair list) — the
   full graph, for callers that trace or visualize a root↔leaf path. `naja-scope`
   serializes this only on request, keeping the default MCP response lean.
@@ -296,14 +297,14 @@ plus the `NajaCollection`→iterator pattern for the node/leaf/root collections.
 1. Kernel + Python unit tests pass (build with the project's normal CMake flow;
    run the SNL kernel gtests and the najaeda python tests).
 2. On a small structural fixture with a known FF feeding combinational logic, a
-   fan-in cone from a downstream pin yields a DAG whose `getRoots()` is the start
-   pin, whose `getLeaves()` contains the upstream FF's Q as a `Flop` leaf, and
-   whose internal nodes are the gates between — connected by `next`/`prev` edges
-   from root to leaf. A fan-out cone from the FF's Q reaches downstream FF D pins
-   as `Flop` leaves and any primary outputs as `Ports`.
+   fan-in cone from a downstream single-bit pin yields a DAG whose `getRoot()` is
+   that start bit, whose `getLeaves()` contains the upstream FF's Q as a `Flop`
+   leaf, and whose internal nodes are the gates between — connected by
+   `next`/`prev` edges from root to leaf. A fan-out cone from the FF's Q reaches
+   downstream FF D pins as `Flop` leaves and any primary outputs as `Ports`.
 3. **DAG shape is correct**: reconvergent logic (one cell feeding two downstream
    cells that meet again) produces a single shared node with multiple `prev`/`next`
-   edges — not duplicated subtrees; `getRoots()`→`next`* reaches exactly
+   edges — not duplicated subtrees; `getRoot()`→`next`* reaches exactly
    `getLeaves()`; the graph is acyclic.
 4. **Combinatorial-arc crossing is honored**, not all-pins recursion: on a
    multi-output leaf cell, a fan-in walk that arrives at one output follows only
@@ -327,3 +328,62 @@ over occurrences/paths that returns sets to Python in one shot. The cone is the
 same shape one level up. Moving it into C++ removes N pybind round-trips and N
 set materializations per query (N = number of nets in the cone), which is the
 actual hotspot on large cores — not the per-net walk, which is already C++.
+
+---
+
+## Follow-up (2026-06-22): shipped in najaeda 0.7.5 but **fails AC 5 & 6** — gate primitives have no modeling
+
+`naja.SNLLogicalCone` shipped in najaeda 0.7.5 with the API this document
+specifies (`SNLLogicalCone(occurrence, FanIn|FanOut)`; `get_nodes()` returning
+`(id, occurrence, kind, next_ids, prev_ids)`; `get_leaves()`, `get_root()`,
+`get_node_count()`, `get_direction()`; node kinds `root`/`internal`/`flop`/
+`ports`/`blackbox`). The DAG model, hierarchy crossing, and flop/port barriers
+all work as designed.
+
+**But the "unmodeled cells = barriers" rule (Algorithm §, AC 5) bites a case
+this document assumed away.** It states: *"The naja-lowered primitives that make
+up these designs all have it (`hasModeling` is true), so they cross normally."*
+That assumption is false. Verified against najaeda 0.7.5 on the
+`cv32a6_imac_sv32` snapshot (`naja-scope` `eval/.cache/cva6-small`):
+
+- `assign` and `naja_mux2__w*` have `hasModeling()==True` → crossed (`internal`).
+- The combinational **gate** primitives SV lowering emits — `and_2`, `or_2`,
+  `not_1`, `and_3`, `and_5`, `and_8`, … — have a `getTruthTable()` but
+  `hasModeling()==False`. The cone classifies each as `blackbox` and **stops**.
+
+Because real combinational paths run through and/or/not gates, the cone
+terminates almost immediately. Fan-in of
+`cva6.ex_stage_i.i_mult.i_div.state_d`:
+
+| | nodes/bit | flop frontier | outside ex_stage |
+|---|---|---|---|
+| `SNLLogicalCone` 0.7.5 | 83 | 2 | **none** |
+| hand-rolled equipotential `cone.py` (verified truth) | 491 total | 16 | csr_regfile_i, issue_stage_i, cache |
+
+This directly **violates acceptance criterion 6** (the `state_d` fan-in cone must
+have leaves in `csr_regfile_i` and `issue_stage_i.i_scoreboard`) and the spirit
+of **criterion 5** (only genuinely unmodeled black boxes should be barriers —
+truth-table-bearing logic gates are not black boxes, they are just missing arc
+metadata).
+
+**Fix — one of:**
+1. **Lowering sets the arcs.** `SNLSVConstructor` already calls `setTruthTable`
+   on these gate primitives; have it also call `addCombinatorialArcs(inputs,
+   outputs)` (all inputs → the output) the way it evidently does for assign/mux,
+   so `hasModeling()` is true for every comb primitive it emits.
+2. **The cone derives crossing from the truth table.** When `hasModeling()` is
+   absent but `getTruthTable()` is present on a single-output comb leaf, treat
+   all inputs as combinatorially feeding the output instead of declaring a
+   `blackbox`. (Reserve `blackbox` for cells with neither modeling nor a truth
+   table.)
+
+Confirmed that injecting the arcs from Python (`model.addCombinatorialArcs(...)`
+on each gate model) does make the cone traverse them — so the algorithm is
+sound; only the per-cell modeling is missing. `naja-scope` does **not** ship that
+injection (it mutates the shared primitives library and the partial result
+diverges ~3–7× from the verified equipotential frontier, needing reconciliation).
+
+**Status:** the planned `naja-scope` `cone.py` → `SNLLogicalCone` rewrite is
+**deferred** until this is fixed upstream; `cone.py` remains the equipotential
+traversal, which produces the verified cross-hierarchy frontier. See
+`NAJAEDA_NOTES.md` feature request §4.

@@ -18,13 +18,20 @@ architecture, scope, phasing, and the tool API.
   layer.) If a capability is missing from raw naja, it becomes a naja feature
   request (local checkout: /Users/xtof/WORK/naja2) — no private hooks, no naja
   C++ build dependency in this repo.
-- Dependency: requires `najaeda>=0.7.4`. The source-access API (source ranges
-  / `getSourceLoc`, naja #389/#390) shipped to PyPI in 0.7.2, but the pin floor
-  is 0.7.4 because that release fixes the naja-if snapshot reload for
-  SystemVerilog-loaded designs (the "model not found" deserialize bug present
-  0.5.2–0.7.3) — the re-entrant RTLInfos persistence path. Pin it in
-  `pyproject.toml`. Earlier 0.5.x lacks the source-access API entirely. See
-  DESIGN.md fact 2 / Week 0 and NAJAEDA_NOTES.md bug §3.
+- Dependency: requires `najaeda>=0.7.5`. The source-access API (source ranges
+  / `getSourceLoc`, naja #389/#390) shipped to PyPI in 0.7.2; 0.7.4 fixes the
+  naja-if snapshot reload for SystemVerilog-loaded designs (the "model not
+  found" deserialize bug present 0.5.2–0.7.3) — the re-entrant RTLInfos
+  persistence path; 0.7.5 adds `naja.SNLLogicalCone`, the intended C++ backend
+  for the cone tool. The floor is 0.7.5 to track that, but the SNLLogicalCone
+  migration is DEFERRED: as shipped it stops at SV-lowered logic gates
+  (`and_*`/`or_*`/`not_*` have a truth table but `hasModeling()==False`), so it
+  cannot reach the cross-hierarchy flop frontier the cone tool must surface.
+  `cone.py` therefore stays on the hand-rolled equipotential traversal until the
+  naja gap is fixed (filed — see NAJAEDA_NOTES.md and
+  docs/naja-feature-request-SNLLogicalCone.md). Pin it in `pyproject.toml`.
+  Earlier 0.5.x lacks the source-access API entirely. See DESIGN.md fact 2 /
+  Week 0 and NAJAEDA_NOTES.md bug §3.
 - Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
   slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
   passes.
