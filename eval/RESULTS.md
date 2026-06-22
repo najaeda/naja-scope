@@ -157,7 +157,17 @@ lands on the exact range, grep finds it too on a navigable tree.
    `max_frontier`/time cap remains a *nice-to-have* for even larger cones, but it
    is no longer a blocker. On the dev cv32 core the question also passes.
 4. **(cv64) `cva6-top-submodules` blows scope's turn budget — a real,
-   build-independent affordance gap.** This one is *not* timing: it fails on
+   build-independent affordance gap. RESOLVED 2026-06-23 → scope is now 13/13 on
+   cv64.** Fix: `get_hierarchy` enumerates only the NON-ASSIGN children (real
+   submodules + leaf primitives) via `snl.non_assign_child_nodes` — which prefers
+   naja's new `getNonAssignInstances()` accessor (local Release build; fallback
+   to `getInstances()`/`isAssign()` so released najaeda still works) — and
+   reports `assign_count`/`non_assign_total` instead of dumping glue; the
+   non-assign set (24 on cv64) is paginated at the root via `limit`/`cursor`. The
+   re-run answers correctly in **3 turns** (was max-turns at 12), naming all 10
+   submodules. Regression: `tests/test_zzz_hierarchy_cva6.py`. Original analysis
+   below.
+   This one is *not* timing: it fails on
    **max-turns** (a step count), reproduced across two clean runs, so a Release
    build will not change it. Measured on the cv64 snapshot, the top (`cva6`) has
    **4,866 direct children = 4,842 `assign` + 14 leaves + only 10 real
@@ -187,17 +197,18 @@ lands on the exact range, grep finds it too on a navigable tree.
 
 ## Verdict
 
-Go — confirmed on the headline config. On cv64a6_imafdc_sv39 scope leads **12/13
-vs grep 9/13** at ~0.51x input / ~0.70x output tokens, in 0.66x the turns; on the
-dev cv32 config the gap is wider (12/13 vs 6/13). The decisive, scope-only class
-is unchanged: flattened sequential counts, post-lowering drivers, and the
-cross-hierarchy cone (`cva6-ex-seq-count`, `cva6-core-seq-count`,
+Go — confirmed on the headline config. On cv64a6_imafdc_sv39 scope now leads
+**13/13 vs grep 9/13** at ~0.51x input / ~0.70x output tokens, in 0.66x the
+turns; on the dev cv32 config the gap is wider (12/13 vs 6/13). The decisive,
+scope-only class is unchanged: flattened sequential counts, post-lowering
+drivers, and the cross-hierarchy cone (`cva6-ex-seq-count`, `cva6-core-seq-count`,
 `cva6-div-state-driver`, `cva6-div-cone-crosshier`) that grep gets wrong or
 hallucinates. The cv64 run surfaced exactly **one genuine, build-independent
 affordance gap** the smaller dev core hid — top-level fan-out (#4: `get_hierarchy`
-truncates the 4,866-child top with no filter, while `get_stats.children_by_model`
-already has the answer) — and one false alarm now closed (#3: the cone "timeout"
+truncated the 4,866-child top with no filter) — **now closed**: `get_hierarchy`
+lists only non-assign children (naja's `getNonAssignInstances()`) and the
+question passes in 3 turns. One false alarm also closed (#3: the cone "timeout"
 was a Debug-build artifact; a Release rebuild brought it to a clean pass). Neither
-is a correctness failure. The numeric goldens are re-verified against the headline
+was a correctness failure. The numeric goldens are re-verified against the headline
 config (cv32→cv64 deltas documented in `cva6.yaml`), closing the DESIGN.md §9
 eval gate.

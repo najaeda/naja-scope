@@ -174,7 +174,8 @@ def find(pattern: str, kind: str = "any", limit: Optional[int] = None,
 
 
 def get_hierarchy(path: Optional[str] = None, depth: int = 1,
-                  limit: Optional[int] = None) -> dict:
+                  limit: Optional[int] = None,
+                  cursor: Optional[str] = None) -> dict:
     depth = max(1, min(depth, 5))
     limit = clamp_limit(limit, default=20, maximum=100)
     if path:
@@ -197,16 +198,26 @@ def get_hierarchy(path: Optional[str] = None, depth: int = 1,
         out["children_total"] = total
         if level >= depth:
             return out
-        children = []
-        shown = 0
-        for child in snl.child_nodes(inst):
-            if shown >= limit:
-                out["children_truncated"] = total - shown
-                break
-            child_resolved = Resolved("instance", child, child.path, inst)
-            children.append(node(child_resolved, level + 1))
-            shown += 1
+        # Enumerate only the non-assign children (real submodules + leaf
+        # primitives); `assign` glue — the overwhelming majority on a lowered
+        # top — is summarized as a count, never dumped. leaf/non-leaf stays a
+        # separate axis: each child carries its own `leaf` flag so the agent can
+        # tell the 10 submodules from the leaf primitives.
+        na = list(snl.non_assign_child_nodes(inst))
+        out["assign_count"] = total - len(na)
+        out["non_assign_total"] = len(na)
+        # Pagination cursor only at the root (unambiguous there); deeper levels
+        # fall back to a truncation count.
+        page, envelope = paginate(na, limit=limit,
+                                  cursor=cursor if level == 0 else None)
+        children = [node(Resolved("instance", c, c.path, inst), level + 1)
+                    for c in page]
         out["children"] = children
+        if level == 0:
+            out["next_cursor"] = envelope["next_cursor"]
+            out["has_more"] = envelope["has_more"]
+        elif envelope["has_more"]:
+            out["children_truncated"] = len(na) - len(children)
         return out
 
     return {"root": node(root, 0), "depth": depth}

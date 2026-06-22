@@ -104,7 +104,7 @@ Conventions (matter more than the tool list): object references are hierarchical
 | Tool | Request (essentials) | Response (essentials) |
 |---|---|---|
 | `resolve` | `{path_or_pattern, kind?}` | `[{kind, path, dir?, width?, model?}]` |
-| `get_hierarchy` | `{instance, depth=1}` | tree with child/leaf counts, truncation markers |
+| `get_hierarchy` | `{instance, depth=1, limit?, cursor?}` | tree of NON-ASSIGN children only (submodules + leaf primitives); per-node `children_total`, `assign_count`, `non_assign_total`, per-child `leaf` flag; root paginated via `next_cursor`/`has_more`, deeper levels via `children_truncated` |
 | `get_drivers` / `get_loads` | `{term_or_net}` | `{equipotential_size, leaf:[{inst,model,pin,src}], top:[…]}` |
 | `trace_cone` | `{term, dir:fanin\|fanout, max_frontier}` | `{node_count, counts_by_kind, frontier:{flops,ports,blackboxes}+counts, cross_hierarchy, counts_by_model, truncated}` (naja `SNLLogicalCone`) |
 | `get_source` | `{object, context_lines=3}` | `{file, start, end, text}` |

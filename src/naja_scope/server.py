@@ -113,10 +113,14 @@ def find(pattern: str, kind: str = "any", limit: Optional[int] = None,
 
 @_tool
 def get_hierarchy(path: Optional[str] = None, depth: int = 1,
-                  limit: Optional[int] = None) -> dict:
-    """Hierarchy tree under an instance (default top). depth<=5, children
-    capped per level with truncation counts."""
-    return api.get_hierarchy(path, depth, limit)
+                  limit: Optional[int] = None,
+                  cursor: Optional[str] = None) -> dict:
+    """Hierarchy tree under an instance (default top). Lists only non-assign
+    children (real submodules + leaf primitives); `assign` glue is reported as
+    `assign_count`, not enumerated. Each child carries a `leaf` flag (submodule
+    vs leaf primitive). depth<=5; the non-assign set is paginated at the root
+    via limit/cursor (next_cursor/has_more), deeper levels via children_truncated."""
+    return api.get_hierarchy(path, depth, limit, cursor)
 
 
 @_tool

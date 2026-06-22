@@ -126,6 +126,17 @@ use case.
    (annotate/sever the flush-class control bridge, or report it separately) —
    but that is a naja-scope summarisation choice, NOT a naja arc-precision FR.
 
+8. **`getNonAssignInstances()` / `getAssignInstances()` on SNL instance
+   containers** *(ADDED in naja3 / "future 0.7.6"; partition of `getInstances()`
+   by `model.isAssign()`)*. Closes eval finding #4 (top-level fan-out): the
+   lowered `cva6` top has 4,866 direct children = 4,842 `assign` glue + 24 real
+   (10 submodules + 14 leaves), and `get_hierarchy` could only window the raw
+   list. `snl.non_assign_child_nodes` now prefers these accessors with a
+   `getInstances()`/`isAssign()` fallback, so the repo runs on both the local
+   Release build and released najaeda. **Not on PyPI yet** — once it lands, bump
+   the `pyproject.toml` najaeda floor and delete the `hasattr` fallback in
+   `snl.non_assign_instances`/`assign_instances`.
+
 ## Bugs found
 
 1. **Parameter specializations merged** *(0.5.2 — FIXED in 0.7.0)*: in

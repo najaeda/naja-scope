@@ -183,6 +183,39 @@ def child_nodes(node: InstNode) -> Iterator[InstNode]:
                        naja.SNLPath(node.snlpath, inst))
 
 
+def non_assign_instances(design) -> Iterator:
+    """A design's direct instances minus the `assign` glue.
+
+    Prefers the native `getNonAssignInstances()` accessor (present on the local
+    Release naja build; NOT yet on PyPI najaeda — see NAJAEDA_NOTES.md) and
+    falls back to filtering `getInstances()` by `model.isAssign()`. This is the
+    ONLY place that knows about the accessor. Leaf primitives are still
+    included — leaf/non-leaf is a separate axis (use `InstNode.is_leaf`).
+    """
+    if hasattr(design, "getNonAssignInstances"):
+        return design.getNonAssignInstances()
+    return (i for i in design.getInstances() if not i.getModel().isAssign())
+
+
+def assign_instances(design) -> Iterator:
+    """A design's `assign` glue instances — the complement of
+    non_assign_instances(). Same native-accessor-with-fallback policy."""
+    if hasattr(design, "getAssignInstances"):
+        return design.getAssignInstances()
+    return (i for i in design.getInstances() if i.getModel().isAssign())
+
+
+def non_assign_child_nodes(node: InstNode) -> Iterator[InstNode]:
+    """child_nodes() restricted to non-assign children (submodules + leaves)."""
+    for inst in non_assign_instances(node.design):
+        yield InstNode(node.names + (inst.getName(),), inst.getModel(), inst,
+                       naja.SNLPath(node.snlpath, inst))
+
+
+def assign_count(design) -> int:
+    return sum(1 for _ in assign_instances(design))
+
+
 def node_from_ids(id_list: List[int]) -> InstNode:
     """Build an InstNode from a top-rooted instance-id list."""
     design = top_design()
