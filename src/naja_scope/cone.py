@@ -1,27 +1,47 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Cone tracing with structural compression: stop-at-flops, hard max_nodes,
-frontier summaries, counts by model. Token-bounding here is a correctness
-requirement, not polish (DESIGN.md section 4).
+"""Cone tracing on top of naja's native `SNLLogicalCone` (najaeda 0.7.6+).
 
-Runs on raw SNL equipotentials: from each pin we build the equipotential,
-classify leaf endpoints by direction, and recurse through the model's opposite
-terms.
+`SNLLogicalCone(seed_occurrence, FanIn|FanOut)` builds, in C++, the rooted DAG
+of combinational logic between the seed bit and the surrounding sequential /
+port / black-box barriers, crossing hierarchy and following combinatorial arcs
+only. naja-scope no longer hand-rolls the equipotential BFS; it seeds the cone,
+then turns the DAG into a token-bounded summary:
+
+* `get_node_count()` / `get_nodes()` kinds  -> size + counts_by_kind,
+* `get_leaves()`                            -> the stop-at-flops frontier
+  (flops, top ports, opaque black boxes), categorised and bounded,
+* the flop frontier grouped by top-level submodule, naming the registers that
+  lie OUTSIDE the cone root's own subtree -> the cross-hierarchy answer.
+
+Token-bounding here is a correctness requirement (DESIGN.md section 4): counts
+are always exact, but every materialised list is capped with a truncation
+marker — never a full node/edge dump.
+
+The native cone is intrinsically stop-at-flops (a flop's D->Q is not a
+combinatorial arc), so there is no `stop=none` mode and no traversal cap; size
+bounding is the caller's job and lives here.
 """
 
 from __future__ import annotations
 
-from collections import deque
 from typing import Dict, List
+
+from najaeda import naja
 
 from . import snl
 from .errors import ScopeError
 from .resolve import Resolved
 from .source_index import SrcRange
 
-DEFAULT_MAX_NODES = 200
-HARD_MAX_NODES = 1000
-MAX_DEPTH = 64
-MAX_EDGES_FACTOR = 4
+DEFAULT_MAX_FRONTIER = 50
+HARD_MAX_FRONTIER = 200
+
+_DIRECTIONS = {
+    "fanin": naja.SNLLogicalCone.FanIn,
+    "fanout": naja.SNLLogicalCone.FanOut,
+}
+# get_leaves() kinds that are barriers, by category.
+_LEAF_KINDS = {"flop", "ports", "blackbox"}
 
 
 def _bits_of(resolved: Resolved) -> List:
@@ -41,38 +61,49 @@ def _subtree_key(path: str) -> str:
     return ".".join(segs[:2]) if len(segs) >= 3 else segs[0]
 
 
-def _frontier_summary(root_path: str, frontier: List[dict]) -> dict:
-    """Group the stop-at-flops frontier by top-level submodule and flag the
-    registers outside the cone root's own subtree.
+def _port_label(netcomp) -> str:
+    top = snl.top_design().getName()
+    name = netcomp.getName()
+    bit = None
+    if type(netcomp).__name__ == "SNLBusTermBit":
+        try:
+            bit = netcomp.getBit()
+        except Exception:
+            bit = None
+    return f"{top}.{name}" + (f"[{bit}]" if bit is not None else "")
 
-    This is the cross-hierarchy affordance: the agent's recurring question is
-    "does this cone reach register state outside <stage>, and which?". Answering
-    it from the flat `frontier` list means re-deriving each path's subtree by
-    hand; this block does it once and names the out-of-subtree registers
-    directly. Token-bounded: per-subtree counts plus a few example paths, never
-    a full dump (DESIGN.md section 4).
-    """
+
+def _leaf_record(inst, ids) -> dict:
+    entry = {"path": snl.path_str_from_ids(ids),
+             "model": inst.getModel().getName()}
+    loc = snl.source_loc(inst)
+    if loc:
+        entry["src"] = SrcRange.from_loc(loc).to_ref()
+    return entry
+
+
+def _cross_hierarchy(root_path: str, flops: Dict[str, dict]) -> dict:
+    """Group the flop frontier by top-level submodule and name the registers
+    outside the cone root's own subtree — the cross-hierarchy affordance: in one
+    call the agent learns whether (and where) the cone reaches register state
+    outside `<stage>`. Token-bounded: per-subtree counts plus a few example
+    paths, never a dump (DESIGN.md section 4)."""
     root_subtree = _subtree_key(root_path)
     by_subtree: Dict[str, dict] = {}
-    port_count = 0
-    for f in frontier:
-        if f.get("reason") == "port":
-            port_count += 1
-            continue
-        key = _subtree_key(f["path"])
+    for path in flops:
+        key = _subtree_key(path)
         bucket = by_subtree.setdefault(key, {"count": 0, "examples": []})
         bucket["count"] += 1
         if len(bucket["examples"]) < 3:
-            bucket["examples"].append(f["path"])
+            bucket["examples"].append(path)
 
     outside = {k: v for k, v in by_subtree.items() if k != root_subtree}
     outside_examples: List[str] = []
     for v in outside.values():
         outside_examples.extend(v["examples"])
 
-    summary = {
+    return {
         "root_subtree": root_subtree,
-        "flop_frontier_count": sum(b["count"] for b in by_subtree.values()),
         "by_subtree": dict(
             sorted(by_subtree.items(), key=lambda kv: -kv[1]["count"])[:20]),
         "outside_root_subtree": {
@@ -81,130 +112,80 @@ def _frontier_summary(root_path: str, frontier: List[dict]) -> dict:
             "examples": outside_examples[:10],
         },
     }
-    if port_count:
-        summary["top_port_count"] = port_count
-    return summary
 
 
 def trace_cone(resolved: Resolved, session, direction: str,
-               stop: str = "flops", max_nodes: int = DEFAULT_MAX_NODES,
-               include_edges: bool = True) -> dict:
-    if direction not in ("fanin", "fanout"):
+               max_frontier: int = DEFAULT_MAX_FRONTIER) -> dict:
+    if direction not in _DIRECTIONS:
         raise ScopeError("direction must be 'fanin' or 'fanout'.")
-    if stop not in ("flops", "none"):
-        raise ScopeError("stop must be 'flops' or 'none'.")
-    max_nodes = max(1, min(max_nodes, HARD_MAX_NODES))
-    max_edges = max_nodes * MAX_EDGES_FACTOR
+    max_frontier = max(1, min(max_frontier, HARD_MAX_FRONTIER))
+    cone_dir = _DIRECTIONS[direction]
 
-    # Leaf endpoints feeding (fanin) or fed by (fanout) the net; recurse through
-    # the model's opposite-direction terms.
-    leaf_exclude = snl.DIR_INPUT if direction == "fanin" else snl.DIR_OUTPUT
-    top_keep = snl.DIR_OUTPUT if direction == "fanin" else snl.DIR_INPUT
-    recurse_dir = snl.DIR_INPUT if direction == "fanin" else snl.DIR_OUTPUT
+    bits = _bits_of(resolved)
+    node_count = 0
+    counts_by_kind: Dict[str, int] = {}
+    counts_by_model: Dict[str, int] = {}
+    # Frontier deduped across seed bits by identity (path / port label).
+    flops: Dict[str, dict] = {}
+    blackboxes: Dict[str, dict] = {}
+    ports: Dict[str, dict] = {}
 
-    nodes: Dict[str, dict] = {}
-    edges: List[List[str]] = []
-    frontier: List[dict] = []
-    counts: Dict[str, int] = {}
-    visited = set()
-    frontier_seen = set()
-    truncated = False
-
-    queue = deque()
-    for i, bit in enumerate(_bits_of(resolved)):
-        queue.append((bit, resolved.kind, resolved.owner, resolved.path, 0,
-                      f"{resolved.path}#{i}"))
-
-    def add_node(inst, ids) -> str:
-        path = snl.path_str_from_ids(ids)
-        if path not in nodes:
-            model = inst.getModel()
-            entry = {"path": path, "model": model.getName()}
-            try:
-                if model.isSequential():
-                    entry["seq"] = True
-            except Exception:
-                pass
-            loc = snl.source_loc(inst)
-            if loc:
-                entry["src"] = SrcRange.from_loc(loc).to_ref()
-            nodes[path] = entry
-            counts[entry["model"]] = counts.get(entry["model"], 0) + 1
-        return path
-
-    def add_edge(a: str, b: str):
-        if include_edges and len(edges) < max_edges:
-            edges.append([a, b] if direction == "fanin" else [b, a])
-
-    def add_frontier(path: str, reason: str, model: str = None):
-        key = (path, reason)
-        if key in frontier_seen:
-            return
-        frontier_seen.add(key)
-        entry = {"path": path, "reason": reason}
-        if model:
-            entry["model"] = model
-        frontier.append(entry)
-
-    while queue:
-        if len(nodes) >= max_nodes:
-            truncated = True
-            break
-        bit, kind, owner, sink_path, depth, key = queue.popleft()
-        if key in visited:
+    for bit in bits:
+        occ = snl.seed_occurrence(resolved.kind, resolved.owner, bit)
+        if occ is None:
             continue
-        visited.add(key)
-        eq = snl.build_equipotential(kind, owner, bit)
-        if eq is None:
-            continue
-        for occ in eq.getInstTermOccurrences():
-            if len(nodes) >= max_nodes:
-                truncated = True
-                break
-            it = occ.getInstTerm()
-            inst = it.getInstance()
-            model = inst.getModel()
-            if not model.isLeaf() or it.getDirection() == leaf_exclude:
+        cone = naja.SNLLogicalCone(occ, cone_dir)
+        node_count += cone.get_node_count()
+        for (_id, _occ, kind, _nx, _pv) in cone.get_nodes():
+            counts_by_kind[kind] = counts_by_kind.get(kind, 0) + 1
+        for (_id, leaf_occ, kind, _nx, _pv) in cone.get_leaves():
+            if kind == "ports":
+                nc = leaf_occ.getNetComponent()
+                if nc is None:
+                    continue
+                label = _port_label(nc)
+                ports.setdefault(label, {"port": label})
                 continue
-            ids = list(occ.getPath().getInstanceIDs())
-            ids.append(inst.getID())
-            path = add_node(inst, ids)
-            add_edge(path, sink_path)
-            is_seq = False
-            try:
-                is_seq = model.isSequential()
-            except Exception:
-                pass
-            if is_seq and stop == "flops":
-                add_frontier(path, "flop", model.getName())
+            inst, ids = snl.occurrence_leaf(leaf_occ)
+            if inst is None:
                 continue
-            if depth + 1 > MAX_DEPTH:
-                add_frontier(path, "max_depth", model.getName())
-                continue
-            inst_node = snl.node_from_ids(ids)
-            for nxt in model.getBitTerms():
-                if nxt.getDirection() == recurse_dir:
-                    queue.append((nxt, "term", inst_node, path, depth + 1,
-                                  f"{path}|{nxt.getName()}"))
-        for term in eq.getTerms():
-            if term.getDirection() == top_keep:
-                continue
-            port = f"{snl.top_design().getName()}.{term.getName()}"
-            add_frontier(port, "port")
+            rec = _leaf_record(inst, ids)
+            if kind == "flop":
+                if rec["path"] not in flops:
+                    flops[rec["path"]] = rec
+                    counts_by_model[rec["model"]] = (
+                        counts_by_model.get(rec["model"], 0) + 1)
+            else:  # blackbox (opaque leaf cell) or any other un-crossed leaf
+                blackboxes.setdefault(rec["path"], rec)
+
+    flop_list = sorted(flops.values(), key=lambda r: r["path"])
+    bb_list = sorted(blackboxes.values(), key=lambda r: r["path"])
+    port_list = sorted(ports.values(), key=lambda r: r["port"])
+    frontier_truncated = (len(flop_list) > max_frontier
+                          or len(bb_list) > max_frontier
+                          or len(port_list) > max_frontier)
 
     out = {
         "root": resolved.path,
         "direction": direction,
-        "stop": stop,
-        "node_count": len(nodes),
-        "nodes": list(nodes.values()),
-        "frontier": frontier[:200],
-        "frontier_summary": _frontier_summary(resolved.path, frontier),
+        "stop": "flops",  # native cone always stops at flops/ports/black boxes
+        "seed_bits": len(bits),
+        "node_count": node_count,
+        "node_count_summed_over_bits": len(bits) > 1,
+        "counts_by_kind": dict(
+            sorted(counts_by_kind.items(), key=lambda kv: -kv[1])),
+        "frontier": {
+            "flop_count": len(flop_list),
+            "port_count": len(port_list),
+            "blackbox_count": len(bb_list),
+            "flops": flop_list[:max_frontier],
+            "ports": port_list[:max_frontier],
+            "blackboxes": bb_list[:max_frontier],
+            "truncated": frontier_truncated,
+        },
         "counts_by_model": dict(
-            sorted(counts.items(), key=lambda kv: -kv[1])[:20]),
-        "truncated": truncated or bool(queue),
+            sorted(counts_by_model.items(), key=lambda kv: -kv[1])[:20]),
+        "cross_hierarchy": _cross_hierarchy(resolved.path, flops),
+        "truncated": frontier_truncated,
     }
-    if include_edges:
-        out["edges"] = edges
-        out["edges_truncated"] = len(edges) >= max_edges
     return out

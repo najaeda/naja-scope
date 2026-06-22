@@ -47,7 +47,10 @@ Navigation: `resolve` (paths, bit selects, glob, did-you-mean),
 `find` (design-wide glob, paginated), `get_hierarchy`.
 
 Connectivity: `get_drivers`, `get_loads` (equipotential endpoints),
-`trace_cone` (fanin/fanout, stop-at-flops, hard `max_nodes`).
+`trace_cone` (fanin/fanout combinational cone via naja `SNLLogicalCone`;
+stop-at-flops/ports/black-boxes; counts + a `cross_hierarchy` summary naming the
+frontier registers outside the cone root's subtree; lists bounded by
+`max_frontier`).
 
 Source & summaries: `get_source` (the SV lines that produced an object),
 `get_module_card` (deterministic ports/counts/clock-reset card),
@@ -82,7 +85,21 @@ RTL/design questions on synthesizable SystemVerilog. Not a DV/testbench tool
 .venv/bin/python -m pytest tests/ -q
 ```
 
-The suite is fully green on najaeda 0.7.4 (no xfails): the upstream bugs it
-once tracked — parameter-specialization merging and naja-if SV-snapshot reload
-— are both fixed (see NAJAEDA_NOTES.md). The snapshot round-trip
-(`tests/test_zz_snapshot.py`) is now a normal passing test.
+The structural/source/snapshot tests are green on najaeda 0.7.4+ (no xfails):
+the upstream bugs once tracked — parameter-specialization merging and naja-if
+SV-snapshot reload — are both fixed (see NAJAEDA_NOTES.md); the snapshot
+round-trip (`tests/test_zz_snapshot.py`) is a normal passing test.
+
+The `trace_cone` tool is built on naja's `SNLLogicalCone` and requires the gate
+combinatorial modeling added in **najaeda 0.7.6**; on 0.7.5 the cone stops at
+un-modeled logic gates and the cone tests fail. Until 0.7.6 is on PyPI, develop
+against the local naja build at `/Users/xtof/WORK/naja3`, which is compiled for
+Homebrew Python 3.14 (it segfaults under a 3.11 interpreter). Use the `.venv314`
+dev venv (Python 3.14; naja3 on a `.pth`; `mcp` + `pytest` installed):
+
+```sh
+./.venv314/bin/python -m pytest -q
+```
+
+The CVA6 cross-hierarchy cone regression (`tests/test_zzz_cone_cva6.py`) is
+slow and skips unless the `eval/.cache/cva6-small` snapshot is present.

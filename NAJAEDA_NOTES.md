@@ -51,11 +51,52 @@ use case.
    6**. Fix (either): SV lowering sets combinatorial arcs on gate primitives the
    way it already does for assign/mux (it already sets their truth tables); or
    `SNLLogicalCone` derives traversal from `getTruthTable()` when `hasModeling()`
-   is absent. **Consequence for naja-scope:** the planned
-   `cone.py`→`SNLLogicalCone` rewrite is deferred; `cone.py` stays equipotential-
-   based until this lands. No Python-side modeling-injection workaround is taken
-   (it would mutate the shared primitives library and only approximates the
-   verified frontier). Verified 2026-06-22 against najaeda 0.7.5.
+   is absent. Verified 2026-06-22 against najaeda 0.7.5.
+   **RESOLVED in naja3 / "future 0.7.6"** (checkout `/Users/xtof/WORK/naja2`'s
+   successor `/Users/xtof/WORK/naja3`, HEAD `4e557f5d "Add Combinatorial
+   Dependencies to NLDB0 and, or, xor, ... gates"` on top of `90b4128a adding
+   logical cone (#393)`). With it the gate primitives carry modeling, the cone
+   has zero gate black boxes, and the `state_d` fan-in cone reaches the
+   cross-hier frontier (`csr_regfile_i.priv_lvl_q`,
+   `issue_stage_i.i_scoreboard.commit_pointer_q`/`mem_q`). `cone.py` was rewritten
+   onto `SNLLogicalCone` (no more equipotential BFS). NOTE the new cone's frontier
+   is much larger than the old equipotential one (state_d: ~196 flops / 15401
+   nodes vs 16 / 491) — see §6, still being reconciled. naja3's `.so` is built for
+   Python 3.14 (segfaults under the 3.11 venv); naja-scope dev runs in `.venv314`.
+6. **`SNLOccurrence` does not expose `getInstance()`** *(RESOLVED in 0.7.6;
+   ergonomics)*. A `SNLLogicalCone` node tuple is `(id, occurrence, kind,
+   next_ids, prev_ids)` (`PySNLLogicalCone.cpp:140`). For Internal/Flop/Blackbox
+   nodes the `occurrence`'s object is an `SNLInstance` (`getPath()` is only the
+   PARENT path), but Python `SNLOccurrence` binds just `getNetComponent()` /
+   `getInstTerm()` / `getPath()` (`PySNLOccurrence.cpp:56-58`) — both casters
+   return `None` for an instance, and there is no `getInstance()` or bound
+   `getObject()`. The C++ `SNLOccurrence` holds the instance in `object_` and has
+   the caster pattern (`getInstTerm()` = `dynamic_cast<SNLInstTerm*>(getObject())`,
+   `SNLOccurrence.cpp:90`) but no `getInstance()`. So the only Python handle on
+   the leaf is its name inside `repr(occurrence)` (= `getString('/')`,
+   `SNLOccurrence.cpp:114`). `cone.py` works around it by parsing the repr
+   (`snl.occurrence_tail_name`/`occurrence_leaf`) — fragile (assumes names have no
+   `/`). **Fix:** add `SNLInstance* SNLOccurrence::getInstance() const` (a
+   `dynamic_cast`, mirroring `getInstTerm`) and bind it
+   (`GetObjectMethod(SNLOccurrence, SNLInstance, getInstance)`, exactly as
+   `PySNLInstTerm.cpp:26` does for inst-terms). Then `occurrence_leaf` drops to
+   `occ.getInstance()` + `occ.getPath().getInstanceIDs()`, no repr parse. Full
+   hand-to-an-agent spec: `docs/naja-feature-request-occurrence-getInstance.md`.
+   **RESOLVED in najaeda 0.7.6:** both `SNLOccurrence.getInstance()`
+   (`GetObjectMethod`) and `SNLOccurrence.isInstanceOccurrence()`
+   (`GetBoolAttribute`) are now bound (`PySNLOccurrence.cpp:59,61`). `cone.py` /
+   `snl.occurrence_leaf` use `getInstance()`; the `repr()` parse
+   (`occurrence_tail_name`, `_OCC_REPR_RE`, `import re`) is deleted.
+7. **`SNLLogicalCone` frontier far exceeds the equipotential cone — reconcile**
+   *(naja3 — needs investigation, not yet filed as a defect)*. state_d fan-in:
+   native cone 196 flops / 15401 nodes vs the old hand-rolled equipotential
+   `cone.py` 16 / 491 — ~12x larger, the OPPOSITE of the cone FR's acceptance
+   criterion 6 ("C++ leaf set a strict subset of the Python BFS"). The native set
+   pulls in ~100 `hpdcache_rtab_i.req_q_dff_*` and SRAM `rdata_dff` cells. Either
+   the old equipotential walk under-traced (and 196 is the true combinational
+   fanin of a control-FSM next-state) or the all-inputs→all-outputs arc model
+   over-connects multi-output / memory cells. Decide which before trusting a
+   golden node count; if over-connection, that is a modeling-precision FR.
 
 ## Bugs found
 

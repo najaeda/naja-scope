@@ -133,16 +133,18 @@ def get_loads(path: str, limit: Optional[int] = None) -> dict:
 
 
 @_tool
-def trace_cone(path: str, direction: str, stop: str = "flops",
-               max_nodes: int = 200, include_edges: bool = True) -> dict:
-    """Trace the fanin/fanout cone of a term/net. direction: fanin|fanout.
-    stop: flops|none. Returns nodes, edges, frontier, counts_by_model;
-    hard-capped by max_nodes (<=1000) with truncation markers.
-    frontier_summary groups the stop-at-flops frontier by top-level submodule
-    and, under outside_root_subtree, names the frontier registers that live
-    OUTSIDE the cone root's own subtree (the cross-hierarchy answer) — read it
-    directly instead of re-deriving subtrees from the flat frontier list."""
-    return api.trace_cone(path, direction, stop, max_nodes, include_edges)
+def trace_cone(path: str, direction: str,
+               max_frontier: int = 50) -> dict:
+    """Trace the combinational fanin/fanout cone of a term/net via naja's
+    SNLLogicalCone. direction: fanin|fanout. The cone crosses hierarchy and
+    combinatorial arcs and always stops at flops, top ports, and opaque
+    black-box cells. Returns node_count, counts_by_kind, counts_by_model, and a
+    `frontier` of {flops, ports, blackboxes} with exact counts and lists capped
+    at max_frontier (<=200) with a truncation marker.
+    `cross_hierarchy` groups the flop frontier by top-level submodule and, under
+    outside_root_subtree, names the frontier registers that live OUTSIDE the
+    cone root's own subtree (the cross-hierarchy answer) — read it directly."""
+    return api.trace_cone(path, direction, max_frontier)
 
 
 @_tool

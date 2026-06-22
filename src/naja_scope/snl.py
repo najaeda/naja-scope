@@ -311,3 +311,46 @@ def equi_size(eq, cap: int) -> object:
     except Exception:
         return None
     return n
+
+
+# -- logical cones (SNLLogicalCone) ------------------------------------------
+
+def seed_occurrence(kind: str, owner: InstNode, bit_obj):
+    """SNLOccurrence for a bit-level term/net in `owner`'s scope — the seed a
+    SNLLogicalCone is rooted at. Mirrors build_equipotential's occurrence
+    construction (term vs net, top vs nested)."""
+    try:
+        if kind == "term":
+            if owner.is_top:
+                return naja.SNLOccurrence(bit_obj)
+            inst_term = owner.snl_instance.getInstTerm(bit_obj)
+            return naja.SNLOccurrence(owner.snlpath.getHeadPath(), inst_term)
+        inst_terms = list(bit_obj.getInstTerms())
+        if inst_terms:
+            return naja.SNLOccurrence(owner.snlpath, inst_terms[0])
+        bit_terms = list(bit_obj.getBitTerms()) if hasattr(
+            bit_obj, "getBitTerms") else []
+        if bit_terms:
+            if owner.is_top:
+                return naja.SNLOccurrence(bit_terms[0])
+            inst_term = owner.snl_instance.getInstTerm(bit_terms[0])
+            return naja.SNLOccurrence(owner.snlpath.getHeadPath(), inst_term)
+    except Exception:
+        return None
+    return None
+
+
+def occurrence_leaf(occ):
+    """(leaf SNLInstance, top-rooted instance-id list) for a cone instance-node
+    occurrence, or (None, None).
+
+    A SNLLogicalCone Internal/Flop/Blackbox node's occurrence references the
+    crossed leaf SNLInstance, with getPath() the path to its parent. We read it
+    via SNLOccurrence.getInstance() (najaeda 0.7.6, naja #393 follow-up); on a
+    non-instance occurrence (Root/Ports terms) getInstance() returns None.
+    """
+    inst = occ.getInstance()
+    if inst is None:
+        return None, None
+    ids = list(occ.getPath().getInstanceIDs())
+    return inst, ids + [inst.getID()]

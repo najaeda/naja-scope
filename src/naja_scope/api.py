@@ -235,13 +235,11 @@ def get_loads(path: str, limit: Optional[int] = None) -> dict:
                                   clamp_limit(limit))
 
 
-def trace_cone(path: str, direction: str, stop: str = "flops",
-               max_nodes: int = cone_mod.DEFAULT_MAX_NODES,
-               include_edges: bool = True) -> dict:
+def trace_cone(path: str, direction: str,
+               max_frontier: int = cone_mod.DEFAULT_MAX_FRONTIER) -> dict:
     resolved = _resolve_single(path)
-    return cone_mod.trace_cone(resolved, SESSION, direction, stop=stop,
-                               max_nodes=max_nodes,
-                               include_edges=include_edges)
+    return cone_mod.trace_cone(resolved, SESSION, direction,
+                               max_frontier=max_frontier)
 
 
 # -- source -----------------------------------------------------------------------

@@ -383,7 +383,13 @@ sound; only the per-cell modeling is missing. `naja-scope` does **not** ship tha
 injection (it mutates the shared primitives library and the partial result
 diverges ~3–7× from the verified equipotential frontier, needing reconciliation).
 
-**Status:** the planned `naja-scope` `cone.py` → `SNLLogicalCone` rewrite is
-**deferred** until this is fixed upstream; `cone.py` remains the equipotential
-traversal, which produces the verified cross-hierarchy frontier. See
-`NAJAEDA_NOTES.md` feature request §4.
+**Status: RESOLVED in naja3 / "future 0.7.6"** — HEAD `4e557f5d "Add
+Combinatorial Dependencies to NLDB0 and, or, xor, ... gates"` adds modeling to
+the lowered gate primitives, so the cone crosses them. `naja-scope`'s `cone.py`
+has been rewritten entirely onto `SNLLogicalCone` (the equipotential BFS is
+gone); the `state_d` fan-in cone now reaches the cross-hier frontier
+(`csr_regfile_i.priv_lvl_q`, `issue_stage_i.i_scoreboard`). Two follow-ups remain
+(NAJAEDA_NOTES.md §6–7): (a) expose a cone node's `SNLInstance` directly so
+consumers don't parse `repr()` for the leaf name; (b) reconcile why the native
+frontier is ~12× larger than the old equipotential one (196 vs 16 flops on
+state_d) — real combinational fanin vs over-broad arcs on multi-output cells.

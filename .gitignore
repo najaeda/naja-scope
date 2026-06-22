@@ -8,3 +8,5 @@ naja_perf.log
 eval/results/
 eval/.scratch/
 eval/.cache/
+.venv314/
+sv_constructor_perf.log

@@ -18,20 +18,22 @@ architecture, scope, phasing, and the tool API.
   layer.) If a capability is missing from raw naja, it becomes a naja feature
   request (local checkout: /Users/xtof/WORK/naja2) — no private hooks, no naja
   C++ build dependency in this repo.
-- Dependency: requires `najaeda>=0.7.5`. The source-access API (source ranges
+- Dependency: requires `najaeda>=0.7.6`. The source-access API (source ranges
   / `getSourceLoc`, naja #389/#390) shipped to PyPI in 0.7.2; 0.7.4 fixes the
   naja-if snapshot reload for SystemVerilog-loaded designs (the "model not
   found" deserialize bug present 0.5.2–0.7.3) — the re-entrant RTLInfos
-  persistence path; 0.7.5 adds `naja.SNLLogicalCone`, the intended C++ backend
-  for the cone tool. The floor is 0.7.5 to track that, but the SNLLogicalCone
-  migration is DEFERRED: as shipped it stops at SV-lowered logic gates
-  (`and_*`/`or_*`/`not_*` have a truth table but `hasModeling()==False`), so it
-  cannot reach the cross-hierarchy flop frontier the cone tool must surface.
-  `cone.py` therefore stays on the hand-rolled equipotential traversal until the
-  naja gap is fixed (filed — see NAJAEDA_NOTES.md and
-  docs/naja-feature-request-SNLLogicalCone.md). Pin it in `pyproject.toml`.
-  Earlier 0.5.x lacks the source-access API entirely. See DESIGN.md fact 2 /
-  Week 0 and NAJAEDA_NOTES.md bug §3.
+  persistence path; 0.7.5 adds `naja.SNLLogicalCone`; 0.7.6 adds combinatorial
+  modeling on the lowered logic gates (and/or/not) so SNLLogicalCone crosses
+  them and reaches the cross-hierarchy flop frontier (on 0.7.5 it stopped at
+  un-modeled gate black boxes — see NAJAEDA_NOTES.md §4). `cone.py` is now built
+  ENTIRELY on `SNLLogicalCone` (the hand-rolled equipotential traversal is gone),
+  so the floor is 0.7.6. **0.7.6 is not on PyPI yet**: dev runs against the local
+  naja build at /Users/xtof/WORK/naja3 (HEAD has the fix), which is compiled for
+  Homebrew **Python 3.14** and segfaults under the 3.11 `.venv`; use the
+  `.venv314` dev venv (Python 3.14, naja3 on a `.pth`, `mcp`+`pytest` installed) —
+  `./.venv314/bin/python -m pytest -q`. Pin it in `pyproject.toml`. Earlier 0.5.x
+  lacks the source-access API entirely. See DESIGN.md fact 2 / Week 0 and
+  NAJAEDA_NOTES.md bug §3 / feature requests §4–7.
 - Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
   slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
   passes.

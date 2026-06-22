@@ -69,18 +69,22 @@ lands on the exact range, grep finds it too on a navigable tree.
 ## Honest failures / to-dos
 
 1. ~~**`cva6-div-cone-crosshier` defeated both arms** (max-turns 12, no
-   answer).~~ **FIXED (2026-06-21).** The original failure was a tool/affordance
-   gap, not a grep win: the cross-hier frontier was present in `trace_cone`'s
-   flat `frontier` list, but the agent burned the turn budget re-deriving each
-   path's subtree by hand against a multi-KB node dump. `trace_cone` now returns
-   a `frontier_summary` that groups the stop-at-flops frontier by top-level
+   answer).~~ **FIXED.** The original failure was a tool/affordance gap, not a
+   grep win: the agent burned the turn budget re-deriving each frontier path's
+   subtree by hand against a multi-KB node dump. `trace_cone` now returns a
+   `cross_hierarchy` block that groups the stop-at-flops frontier by top-level
    submodule and, under `outside_root_subtree`, names the frontier registers
    outside the cone root's own subtree directly (counts + a few example paths,
-   token-bounded per DESIGN.md §4). Re-run on the warm `cva6-small` server (arm
-   A): correct, 13 turns, clean finish (not a max-turns abort) — the agent read
-   the cross-hier answer (`csr_regfile_i`, `issue_stage_i`, incl. `priv_lvl_q`)
-   straight out of the summary. See `cone.py:_frontier_summary` and the
-   `test_cone_frontier_summary_groups_by_subtree` regression test.
+   token-bounded per DESIGN.md §4). The agent reads the cross-hier answer
+   (`csr_regfile_i`, `issue_stage_i`, incl. `priv_lvl_q`) straight out of it.
+   NOTE (2026-06-22): the cone tool was since rebuilt on naja's native
+   `SNLLogicalCone` (najaeda 0.7.6) — the hand-rolled equipotential traversal and
+   its `frontier_summary` are gone, replaced by `cross_hierarchy` over the native
+   DAG's flop frontier; the cross-hier dependency is unchanged design truth. The
+   native cone reaches a much larger frontier than the old walk (196 vs 16 flops
+   on state_d — under reconciliation, NAJAEDA_NOTES.md §7), so re-score this
+   question on 0.7.6 before trusting it. Regression: `cone.py` +
+   `tests/test_zzz_cone_cva6.py` and `test_cone_cross_hierarchy_summary`.
 2. **`in_tok` understates grep's cost.** The bulk is cache-read source
    (1.88M for grep vs 1.04M for scope); even discounted, it is the context
    bloat the tool layer avoids, and it grows with design size while scope's
