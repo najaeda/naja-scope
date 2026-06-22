@@ -88,15 +88,43 @@ use case.
    `snl.occurrence_leaf` use `getInstance()`; the `repr()` parse
    (`occurrence_tail_name`, `_OCC_REPR_RE`, `import re`) is deleted.
 7. **`SNLLogicalCone` frontier far exceeds the equipotential cone — reconcile**
-   *(naja3 — needs investigation, not yet filed as a defect)*. state_d fan-in:
-   native cone 196 flops / 15401 nodes vs the old hand-rolled equipotential
-   `cone.py` 16 / 491 — ~12x larger, the OPPOSITE of the cone FR's acceptance
-   criterion 6 ("C++ leaf set a strict subset of the Python BFS"). The native set
-   pulls in ~100 `hpdcache_rtab_i.req_q_dff_*` and SRAM `rdata_dff` cells. Either
-   the old equipotential walk under-traced (and 196 is the true combinational
-   fanin of a control-FSM next-state) or the all-inputs→all-outputs arc model
-   over-connects multi-output / memory cells. Decide which before trusting a
-   golden node count; if over-connection, that is a modeling-precision FR.
+   *(naja3 — INVESTIGATED 2026-06-22; NOT a defect, no FR)*. state_d fan-in:
+   native cone 196 flops / ~7700 nodes/bit (2 bits) vs the old hand-rolled
+   equipotential `cone.py` 16 / 491 — ~12x larger, the OPPOSITE of the cone FR's
+   acceptance criterion 6 ("C++ leaf set a strict subset of the Python BFS").
+   The native set pulls in ~100 `hpdcache_rtab_i.req_q_dff_*` and SRAM
+   `rdata_dff` cells.
+
+   **Verdict: 196 is the TRUE combinational fan-in; the old equipotential walk
+   under-traced.** The arc model is precise — NOT over-broad. Decisive evidence
+   (`naja.SNLDesign.getCombinatorialInputs/Outputs` on the lowered leaf cells,
+   loaded from `eval/.cache/cva6-small/snapshot`):
+   - `naja_mem` (the SRAM array leaf, `isSequential()==True`): `RDATA[i]`'s
+     combinatorial-input set is **RADDR only** (just the log2(depth) address
+     bits); `WDATA`/`WE`/`WADDR`/`CLK` each return an **empty** combinatorial-
+     output set. Clean async-read RAM arc (RADDR→RDATA combinational; writes are
+     sequential, no arc). No all-inputs→all-outputs coupling. The "over-connects
+     memory cells" hypothesis is **false**.
+   - `naja_mux2.Y` → {A,B,S} (3, correct); `naja_dff` D/Q → no combinatorial arc
+     (correct sequential barrier). Lowered and/or/xnor are single-output, arcs OK.
+   - Why the dcache flops are genuinely in-cone: the divider's `state_d` has
+     `flush_i` as a real combinational input (canonical serdiv `if (flush_i)
+     state_d = IDLE`). `flush_ex` is a global control reduction (controller →
+     commit → fence/dcache handshake) that legitimately fans back through
+     precise single-output arcs into csr, commit, controller, and the dcache
+     (rtab `req_q`, wbuf, mshr, SRAM `rdata_dff`). A concrete root→leaf path was
+     walked gate-by-gate (mux2/and/or/xnor/assign only) confirming this. The
+     divider-local flops the old walk found (`state_q`, `op_b_zero_q`,
+     `op_b_neg_one_q`, `div_res_zero_q`, `cnt_q`, `mult_valid_q`) are a subset of
+     the 196. The old equipotential cone simply never crossed the hierarchical
+     flush/control fabric (it stopped at the local module), so 16 ⊂ 196.
+
+   **Implication for golden node counts:** trust 196 — it is correct. The real
+   issue is *product/UX*, not modeling: a tiny FSM's next-state cone is dominated
+   by the global flush network, which is technically-true-but-unhelpful for an
+   agent asking "what does the divider depend on." Consider a future affordance
+   (annotate/sever the flush-class control bridge, or report it separately) —
+   but that is a naja-scope summarisation choice, NOT a naja arc-precision FR.
 
 ## Bugs found
 

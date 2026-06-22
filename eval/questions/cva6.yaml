@@ -11,11 +11,20 @@
 # way to baseline phase 2. Skewed toward questions where grep is *wrong*, not
 # merely slow (post-elaboration connectivity, uniquification, flattened counts).
 #
-# NOTE: these golden answers are for the cv32a6_imac_sv32 config. The headline
-# cva6-full run (cv64a6_imafdc_sv39) changes widths/counts (e.g. sequential
-# totals, FSM register widths), so numeric goldens must be re-verified against
-# the full core before trusting a cva6-full run. Structural/connectivity facts
-# (which submodule drives a port, reset polarity, uniquification) carry over.
+# NOTE: golden answers were originally authored on cv32a6_imac_sv32 (dev). They
+# were RE-VERIFIED against the cv64a6_imafdc_sv39 headline snapshot on 2026-06-22
+# (eval/.cache/cva6-full; ground truth via eval/harness/probe_goldens.py). The
+# headline differs from the dev config in TWO structural ways, not just widths:
+#   1. imafdc adds the F/D FPU (cvfpu) to the EX stage  -> EX seq 92->358.
+#   2. imafdc uses the WRITE-THROUGH cache subsystem (wt_dcache), whereas imac
+#      uses HPDCACHE. So hpdcache* modules DO NOT EXIST on the headline: the
+#      hpdcache_mux uniquification question was retargeted to rr_arb_tree, the
+#      noc_req_o driver is the wt cache adapter (not the hpdcache axi arbiter),
+#      and whole-core seq count is LOWER (808->573) despite the FPU because the
+#      WT cache is far less register-heavy than HPDCACHE.
+# Config-dependent numerics carry a "cv32=.. / cv64=.." comment at each check;
+# config-independent facts (reset polarity, FSM state width, serdiv dffrn driver,
+# div-state cross-hier cone reaching csr/scoreboard) were confirmed unchanged.
 #
 # Fields: id, category, intent (true = phase-1-only intent question, baselines
 # phase 2), question, golden (human-readable truth), check (see score.py).
@@ -47,6 +56,8 @@ questions:
     golden: >
       0 - commit_stage is purely combinational; its flattened subtree contains
       no flip-flop/register primitives (flat_sequential = 0).
+    # Config-independent: 0 on both cv32a6_imac_sv32 and cv64a6_imafdc_sv39
+    # (re-verified on the cv64 headline snapshot).
     check: {type: numeric, value: 0, tol: 0}
 
   - id: cva6-ex-seq-count
@@ -56,8 +67,10 @@ questions:
       How many flip-flop / register-group (sequential primitive) instances are
       in the ex_stage subtree (instance ex_stage_i), flattened across its whole
       hierarchy?
-    golden: "92 sequential register groups in the flattened ex_stage_i subtree."
-    check: {type: numeric, value: 92, tol: 0}
+    golden: "358 sequential register groups in the flattened ex_stage_i subtree."
+    # cv32a6_imac_sv32 (dev) = 92; cv64a6_imafdc_sv39 (headline) = 358 — the
+    # jump is the F/D FPU (cvfpu) that imafdc adds to EX, absent in imac.
+    check: {type: numeric, value: 358, tol: 0}
 
   - id: cva6-core-seq-count
     category: structure
@@ -66,20 +79,36 @@ questions:
       How many flip-flop / register-group (sequential primitive) instances does
       the entire flattened cva6 core contain? (Count register groups, not
       individual bits.)
-    golden: "808 sequential register groups across the whole flattened core."
-    check: {type: numeric, value: 808, tol: 0}
+    golden: "573 sequential register groups across the whole flattened core."
+    # cv32a6_imac_sv32 (dev) = 808; cv64a6_imafdc_sv39 (headline) = 573. Counter-
+    # intuitively LOWER despite the bigger config: imafdc uses the write-through
+    # (wt_dcache) cache subsystem, whereas imac uses the far more register-heavy
+    # HPDCACHE. The WT cache's smaller register-group footprint outweighs the FFs
+    # the FPU adds. (Counts register GROUPS, not bits, so wider cv64 regs don't
+    # inflate it.) Verified by independent recursive isSequential() traversal.
+    check: {type: numeric, value: 573, tol: 0}
 
   - id: cva6-uniquify-mux
     category: structure
     intent: false
+    # RETARGETED for the cv64 headline. The dev config cv32a6_imac_sv32 uses the
+    # HPDCACHE subsystem, where hpdcache_mux uniquifies into 20 variants (base +
+    # __elab1..19) — the original golden. The headline cv64a6_imafdc_sv39 instead
+    # uses the write-through (wt_dcache) cache subsystem: hpdcache_mux DOES NOT
+    # EXIST there (0 designs named hpdcache*), so that question is unanswerable on
+    # the headline config. Retargeted to rr_arb_tree (the round-robin arbiter
+    # tree) — the same kind of small, heavily-reused structural module whose
+    # per-instantiation specializations are a pure elaboration artifact invisible
+    # to a source grep. On cv64 it uniquifies into 7 variants (base + __elab1..6).
+    # (cv32 hpdcache_mux golden = 20; preserved here for the record.)
     question: >
       After elaboration, how many distinct elaborated module variants of
-      `hpdcache_mux` exist (counting the base module and every uniquified
+      `rr_arb_tree` exist (counting the base module and every uniquified
       specialization)?
     golden: >
-      20 distinct variants: the base hpdcache_mux plus hpdcache_mux__elab1
-      through hpdcache_mux__elab19 (19 uniquified specializations).
-    check: {type: any_of, groups: [["20"], ["19", "base"]]}
+      7 distinct variants: the base rr_arb_tree plus rr_arb_tree__elab1 through
+      rr_arb_tree__elab6 (6 uniquified specializations).
+    check: {type: any_of, groups: [["7"], ["6", "base"]]}
 
   - id: cva6-noc-driver
     category: connectivity
@@ -88,10 +117,17 @@ questions:
       Which submodule of the core ultimately drives the top-level output port
       noc_req_o?
     golden: >
-      The hpdcache cache subsystem - specifically the AXI arbiter's
-      i_hpdcache_mem_to_axi_write path (assigns in
-      cache_subsystem/hpdcache/.../hpdcache_mem_to_axi_write.sv).
-    check: {type: any_of, groups: [["hpdcache"], ["cache subsystem"], ["axi arbiter"]]}
+      The data-cache subsystem's AXI adapter. On cv32a6_imac_sv32 that is the
+      HPDCACHE AXI arbiter (i_hpdcache_mem_to_axi_write,
+      cache_subsystem/hpdcache/.../hpdcache_mem_to_axi_write.sv). On the cv64
+      headline it is the write-through cache subsystem's adapter/AXI shim
+      (cva6_gen_cache_wt_i_cache_subsystem.i_adapter.i_axi_shim, axi_shim.sv) -
+      the same answer-class (the cache subsystem drives noc_req_o) but a
+      different module because imafdc swaps HPDCACHE for the wt_dcache. Either way
+      it is the cache subsystem, which a textual grep cannot establish post-elab.
+    # Config-dependent module name (hpdcache vs wt cache); check accepts both
+    # cache-subsystem spellings plus the axi adapter/shim the cv64 path lands on.
+    check: {type: any_of, groups: [["hpdcache"], ["cache subsystem"], ["cache_subsystem"], ["wt_cache"], ["axi arbiter"], ["axi_shim"], ["adapter"]]}
 
   - id: cva6-div-state-driver
     category: connectivity
@@ -113,6 +149,9 @@ questions:
       What is the bit width of the serial-divider FSM state register
       cva6.ex_stage_i.i_mult.i_div.state_q?
     golden: "2 bits (state_q is [1:0], i.e. up to 4 FSM states)."
+    # Config-independent: 2 on both configs (the serdiv FSM has a fixed 4-state
+    # encoding regardless of datapath width). Re-verified: driver is
+    # naja_dffrn__w2 on the cv64 headline snapshot.
     check: {type: numeric, value: 2, tol: 0}
 
   - id: cva6-ptw-source
@@ -159,10 +198,13 @@ questions:
       register state outside the EX stage? If so, name at least one such
       register or module.
     golden: >
-      Yes - the cone's flop frontier reaches registers outside EX, e.g.
-      csr_regfile_i.priv_lvl_q and issue_stage_i.i_scoreboard (commit_pointer_q,
-      mem_q). The divider's next state is gated by core-global state, which a
-      purely textual grep of serdiv.sv cannot reveal.
+      Yes - the cone's flop frontier reaches registers outside EX. On cv32 these
+      include csr_regfile_i.priv_lvl_q and issue_stage_i.i_scoreboard
+      (commit_pointer_q, mem_q). On the cv64 headline the outside-EX frontier
+      (16 flops) is csr_regfile_i (debug_mode_q, dcsr_q, wfi_q),
+      issue_stage_i.i_scoreboard (mem_q) and the wt cache subsystem. Either way
+      the divider's next state is gated by core-global CSR/scoreboard state,
+      which a purely textual grep of serdiv.sv cannot reveal.
     check: {type: any_of, groups: [["csr"], ["scoreboard"], ["priv_lvl"], ["issue_stage"]]}
 
   - id: cva6-serdiv-adders
@@ -171,5 +213,7 @@ questions:
     question: >
       How many full-adder (naja_fa) primitive instances does the serial-divider
       module `serdiv` contain?
-    golden: "108 naja_fa full-adder primitives in serdiv."
-    check: {type: numeric, value: 108, tol: 0}
+    golden: "206 naja_fa full-adder primitives in serdiv."
+    # cv32a6_imac_sv32 (dev) = 108; cv64a6_imafdc_sv39 (headline) = 206 — the
+    # serial divider's datapath widens from 32 to 64 bits, ~doubling the adders.
+    check: {type: numeric, value: 206, tol: 0}
