@@ -127,15 +127,14 @@ use case.
    but that is a naja-scope summarisation choice, NOT a naja arc-precision FR.
 
 8. **`getNonAssignInstances()` / `getAssignInstances()` on SNL instance
-   containers** *(ADDED in naja3 / "future 0.7.6"; partition of `getInstances()`
-   by `model.isAssign()`)*. Closes eval finding #4 (top-level fan-out): the
-   lowered `cva6` top has 4,866 direct children = 4,842 `assign` glue + 24 real
-   (10 submodules + 14 leaves), and `get_hierarchy` could only window the raw
-   list. `snl.non_assign_child_nodes` now prefers these accessors with a
-   `getInstances()`/`isAssign()` fallback, so the repo runs on both the local
-   Release build and released najaeda. **Not on PyPI yet** — once it lands, bump
-   the `pyproject.toml` najaeda floor and delete the `hasattr` fallback in
-   `snl.non_assign_instances`/`assign_instances`.
+   containers** *(SHIPPED in najaeda 0.7.6; partition of `getInstances()` by
+   `model.isAssign()`)*. Closes eval finding #4 (top-level fan-out): the lowered
+   `cva6` top has 4,866 direct children = 4,842 `assign` glue + 24 real (10
+   submodules + 14 leaves), and `get_hierarchy` could only window the raw list.
+   `snl.non_assign_child_nodes` calls these accessors directly.
+   **Verified on PyPI 0.7.6 (2026-06-23): both bound on `SNLDesign`.** The
+   `pyproject.toml` floor is `najaeda>=0.7.6` and the earlier `hasattr` fallback
+   has been removed.
 
 ## Bugs found
 

@@ -184,25 +184,16 @@ def child_nodes(node: InstNode) -> Iterator[InstNode]:
 
 
 def non_assign_instances(design) -> Iterator:
-    """A design's direct instances minus the `assign` glue.
-
-    Prefers the native `getNonAssignInstances()` accessor (present on the local
-    Release naja build; NOT yet on PyPI najaeda — see NAJAEDA_NOTES.md) and
-    falls back to filtering `getInstances()` by `model.isAssign()`. This is the
-    ONLY place that knows about the accessor. Leaf primitives are still
-    included — leaf/non-leaf is a separate axis (use `InstNode.is_leaf`).
-    """
-    if hasattr(design, "getNonAssignInstances"):
-        return design.getNonAssignInstances()
-    return (i for i in design.getInstances() if not i.getModel().isAssign())
+    """A design's direct instances minus the `assign` glue (naja
+    `getNonAssignInstances()`, najaeda>=0.7.6). Leaf primitives are still
+    included — leaf/non-leaf is a separate axis (use `InstNode.is_leaf`)."""
+    return design.getNonAssignInstances()
 
 
 def assign_instances(design) -> Iterator:
     """A design's `assign` glue instances — the complement of
-    non_assign_instances(). Same native-accessor-with-fallback policy."""
-    if hasattr(design, "getAssignInstances"):
-        return design.getAssignInstances()
-    return (i for i in design.getInstances() if i.getModel().isAssign())
+    non_assign_instances() (naja `getAssignInstances()`, najaeda>=0.7.6)."""
+    return design.getAssignInstances()
 
 
 def non_assign_child_nodes(node: InstNode) -> Iterator[InstNode]:
