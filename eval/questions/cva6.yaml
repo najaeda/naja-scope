@@ -28,6 +28,12 @@
 #
 # Fields: id, category, intent (true = phase-1-only intent question, baselines
 # phase 2), question, golden (human-readable truth), check (see score.py).
+# Base fields are the cv64a6_imafdc_sv39 HEADLINE values. A question may add an
+# optional `by_config: {cva6-small: {question?, golden?, check?}}` block to
+# specialize the fields that differ on the cv32a6_imac_sv32 dev config (counts,
+# or a whole retargeted question); run_eval._apply_config merges it by design
+# key at load time, so `--design cva6-small` and `--design cva6-full` each score
+# against their own truth from this single bank.
 
 design: cva6
 
@@ -71,6 +77,10 @@ questions:
     # cv32a6_imac_sv32 (dev) = 92; cv64a6_imafdc_sv39 (headline) = 358 — the
     # jump is the F/D FPU (cvfpu) that imafdc adds to EX, absent in imac.
     check: {type: numeric, value: 358, tol: 0}
+    by_config:
+      cva6-small:
+        golden: "92 sequential register groups in the flattened ex_stage_i subtree (cv32a6_imac_sv32, no FPU)."
+        check: {type: numeric, value: 92, tol: 0}
 
   - id: cva6-core-seq-count
     category: structure
@@ -87,6 +97,10 @@ questions:
     # the FPU adds. (Counts register GROUPS, not bits, so wider cv64 regs don't
     # inflate it.) Verified by independent recursive isSequential() traversal.
     check: {type: numeric, value: 573, tol: 0}
+    by_config:
+      cva6-small:
+        golden: "808 sequential register groups across the whole flattened core (cv32a6_imac_sv32, HPDCACHE)."
+        check: {type: numeric, value: 808, tol: 0}
 
   - id: cva6-uniquify-mux
     category: structure
@@ -109,6 +123,20 @@ questions:
       7 distinct variants: the base rr_arb_tree plus rr_arb_tree__elab1 through
       rr_arb_tree__elab6 (6 uniquified specializations).
     check: {type: any_of, groups: [["7"], ["6", "base"]]}
+    # The dev config cv32a6_imac_sv32 uses HPDCACHE, where this question targets
+    # hpdcache_mux (20 variants: base + __elab1..19) — NOT source-derivable, so
+    # grep fails it honestly. hpdcache_mux does not exist on the cv64 headline
+    # (wt_dcache), hence the rr_arb_tree retarget above.
+    by_config:
+      cva6-small:
+        question: >
+          After elaboration, how many distinct elaborated module variants of
+          `hpdcache_mux` exist (counting the base module and every uniquified
+          specialization)?
+        golden: >
+          20 distinct variants: the base hpdcache_mux plus hpdcache_mux__elab1
+          through hpdcache_mux__elab19 (19 uniquified specializations).
+        check: {type: any_of, groups: [["20"], ["19", "base"]]}
 
   - id: cva6-noc-driver
     category: connectivity
@@ -217,3 +245,7 @@ questions:
     # cv32a6_imac_sv32 (dev) = 108; cv64a6_imafdc_sv39 (headline) = 206 — the
     # serial divider's datapath widens from 32 to 64 bits, ~doubling the adders.
     check: {type: numeric, value: 206, tol: 0}
+    by_config:
+      cva6-small:
+        golden: "108 naja_fa full-adder primitives in serdiv (cv32a6_imac_sv32, 32-bit datapath)."
+        check: {type: numeric, value: 108, tol: 0}

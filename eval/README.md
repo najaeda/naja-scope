@@ -73,10 +73,16 @@ question×arm, plus `summary.md` (per-question table + aggregate) and
   `eval/results/` (gitignored).
 - **E3 (done):** write-up in `eval/RESULTS.md` — deltas by category/design, the
   intent-question phase-2 baseline, and honest failures.
-- **Remaining:** re-verify numeric goldens against `cva6-full`
-  (cv64a6_imafdc_sv39; widths/counts differ) and run the headline once; fix the
-  `trace_cone` cross-hierarchy-frontier affordance behind `cva6-div-cone-crosshier`
-  (defeated both arms at max-turns) before re-scoring that question.
+- **E4 (done, 2026-06-23):** ran the headline `cva6-full` (cv64a6_imafdc_sv39).
+  Numeric goldens re-verified against that config (cv32→cv64 deltas documented
+  inline in `questions/cva6.yaml` and `RESULTS.md`) via `probe_goldens.py`; the
+  two affordance gaps the larger config surfaced were both closed and their
+  questions re-scored — `trace_cone`'s cross-hierarchy frontier
+  (`cva6-div-cone-crosshier`) and `get_hierarchy`'s non-assign filter for the
+  4,866-child top (`cva6-top-submodules`). Final headline: **scope 13/13 vs grep
+  9/13** at ~0.51x input / ~0.70x output tokens, 0.66x turns. Authoritative merge
+  in `results/cva6-full_MERGED.md`; write-up in `RESULTS.md`. The DESIGN.md §9
+  eval gate is closed — verdict **Go**.
 
 ## Notes
 
@@ -87,3 +93,9 @@ question×arm, plus `summary.md` (per-question table + aggregate) and
   The warm server is still loaded once and shared across all arm-A questions —
   never re-spawn it per question.
 - Agents are told to end with `ANSWER: <...>`; scoring reads that line.
+- `questions/cva6.yaml` is **config-aware**: base fields are the cv64a6_imafdc_sv39
+  headline values, and a question may carry a `by_config: {cva6-small: {...}}`
+  block that `run_eval._apply_config` merges by design key at load time. So one
+  bank scores both `--design cva6-full` (cv64) and `--design cva6-small` (cv32)
+  against their own goldens — the four config-dependent questions (ex/core seq
+  counts, serdiv adders, the uniquify-mux target) differ between them.

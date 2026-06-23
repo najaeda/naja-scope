@@ -65,11 +65,26 @@ ARM_B_SYS = ("You are answering a question about a SystemVerilog design by "
              "with grep/ripgrep and file reads. " + SHARED_SYS)
 
 
+def _apply_config(q: dict, design_key: str) -> dict:
+    """Resolve per-config overrides on a question.
+
+    A CVA6 question may carry `by_config: {<design_key>: {question?, golden?,
+    check?}}` to specialize the fields that differ between configs (cv32a6 dev vs
+    cv64a6 headline) — numeric counts, or a whole retargeted question. The base
+    fields are the default (the headline cv64a6_imafdc_sv39 values); an entry
+    keyed by `design_key` overrides them. Returns a copy without `by_config`."""
+    by = q.get("by_config") or {}
+    merged = {k: v for k, v in q.items() if k != "by_config"}
+    if design_key in by:
+        merged.update(by[design_key])
+    return merged
+
+
 def load_bank(design_key: str) -> list:
     spec = design_registry.get(design_key)
     with open(spec["questions"], encoding="utf-8") as f:
         bank = yaml.safe_load(f)
-    return bank.get("questions") or []
+    return [_apply_config(q, design_key) for q in (bank.get("questions") or [])]
 
 
 def resolve_claude_bin(arg: str | None) -> str | None:
