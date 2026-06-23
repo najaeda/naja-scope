@@ -27,13 +27,15 @@ architecture, scope, phasing, and the tool API.
   them and reaches the cross-hierarchy flop frontier (on 0.7.5 it stopped at
   un-modeled gate black boxes — see NAJAEDA_NOTES.md §4). `cone.py` is now built
   ENTIRELY on `SNLLogicalCone` (the hand-rolled equipotential traversal is gone),
-  so the floor is 0.7.6. **0.7.6 is not on PyPI yet**: dev runs against the local
-  naja build at /Users/xtof/WORK/naja3 (HEAD has the fix), which is compiled for
-  Homebrew **Python 3.14** and segfaults under the 3.11 `.venv`; use the
-  `.venv314` dev venv (Python 3.14, naja3 on a `.pth`, `mcp`+`pytest` installed) —
-  `./.venv314/bin/python -m pytest -q`. Pin it in `pyproject.toml`. Earlier 0.5.x
-  lacks the source-access API entirely. See DESIGN.md fact 2 / Week 0 and
-  NAJAEDA_NOTES.md bug §3 / feature requests §4–7.
+  so the floor is 0.7.6. **0.7.6 is on PyPI**, so the canonical dev path is the
+  3.11 `.venv` (PyPI najaeda, `--system-site-packages`) — `./.venv/bin/python -m
+  pytest -q`. The `.venv314` dev venv (Python 3.14, the local naja build at
+  /Users/xtof/WORK/naja3 on a `.pth`) remains only for running against naja HEAD
+  ahead of a release; that build is compiled for Homebrew Python 3.14 and
+  segfaults under the 3.11 `.venv`, so the two are not interchangeable. Pin is
+  `najaeda>=0.7.6` in `pyproject.toml`. Earlier 0.5.x lacks the source-access API
+  entirely. See DESIGN.md fact 2 / Week 0 and NAJAEDA_NOTES.md bug §3 / feature
+  requests §4–7.
 - Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
   slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
   passes.
