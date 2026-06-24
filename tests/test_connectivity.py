@@ -45,7 +45,10 @@ def test_cone_fanin_reaches_ff(uart_session):
     fr = out["frontier"]
     assert fr["flop_count"] >= 1
     ff = fr["flops"][0]
-    assert ff["path"] == "uart_top.u_tx.tx_o_dff"
+    # Anonymous lowered flop: addressed by its stable `#id` segment, with a
+    # readable driven-net label alongside.
+    assert ff["path"].startswith("uart_top.u_tx.#")
+    assert "tx_o" in ff["label"]
     assert "dff" in ff["model"]
     assert "uart.sv" in ff["src"]
 

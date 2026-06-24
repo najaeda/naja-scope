@@ -14,10 +14,7 @@ from typing import List, Optional
 
 from . import loader, snl
 from .errors import NoDesignError, ScopeError
-from .naming import ensure_names
-from .source_index import SourceIndex
 
-_SIDECAR_NAME = "naja_scope_source_index.json"
 _SIDECAR_META = "naja_scope_session.json"
 
 
@@ -25,10 +22,8 @@ class Session:
     """Structural provider: live SNL + source index + load metadata."""
 
     def __init__(self):
-        self.source_index: Optional[SourceIndex] = None
         self.source_dirs: List[str] = []
         self.loaded_files: List[str] = []
-        self.naming_stats: Optional[dict] = None
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -62,8 +57,6 @@ class Session:
         self._record_sources(files)
         if flist:
             self._record_sources([flist])
-        self.naming_stats = ensure_names()
-        self.source_index = None  # built lazily on first source query
         return snl.top_node()
 
     def load_verilog(self, files: List[str], keep_assigns: bool = True,
@@ -71,17 +64,9 @@ class Session:
         loader.load_verilog(files, keep_assigns=keep_assigns,
                             allow_unknown_designs=allow_unknown_designs)
         self._record_sources(files)
-        self.naming_stats = ensure_names()
-        self.source_index = None
         return snl.top_node()
 
-    # -- source index --------------------------------------------------------
-
-    def get_source_index(self) -> SourceIndex:
-        self.require_top()
-        if self.source_index is None:
-            self.source_index = SourceIndex.build()
-        return self.source_index
+    # -- source resolution ---------------------------------------------------
 
     def find_source_file(self, path: str) -> Optional[str]:
         """Resolve a (possibly relative) sv_src_file path against known dirs."""
@@ -98,23 +83,17 @@ class Session:
     def save_snapshot(self, directory: str) -> dict:
         self.require_top()
         loader.dump_naja_if(directory)
-        index = self.get_source_index()
-        index.save(os.path.join(directory, _SIDECAR_NAME))
         import json
         with open(os.path.join(directory, _SIDECAR_META), "w",
                   encoding="utf-8") as f:
             json.dump({"source_dirs": self.source_dirs,
                        "loaded_files": self.loaded_files}, f)
-        return {"path": directory, "source_index": index.stats()}
+        return {"path": directory}
 
     def load_snapshot(self, directory: str) -> "snl.InstNode":
         if not os.path.isdir(directory):
             raise ScopeError(f"Snapshot directory not found: {directory}")
         loader.load_naja_if(directory)
-        self.naming_stats = ensure_names()
-        sidecar = os.path.join(directory, _SIDECAR_NAME)
-        self.source_index = SourceIndex.load(sidecar) if os.path.isfile(
-            sidecar) else None
         meta_path = os.path.join(directory, _SIDECAR_META)
         if os.path.isfile(meta_path):
             import json

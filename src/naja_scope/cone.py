@@ -75,11 +75,23 @@ def _port_label(netcomp) -> str:
 
 def _leaf_record(inst, ids) -> dict:
     entry = {"path": snl.path_str_from_ids(ids),
+             "label": snl.friendly_label(inst),
              "model": inst.getModel().getName()}
     loc = snl.source_loc(inst)
     if loc:
         entry["src"] = SrcRange.from_loc(loc).to_ref()
     return entry
+
+
+def _display_path(rec: dict) -> str:
+    """A readable path for a frontier record: its hierarchical path with the
+    trailing anonymous `#id` segment replaced by the driven-net label
+    (`cva6.csr_regfile_i.priv_lvl_q_dffrn`). Falls back to the raw path."""
+    head, _, tail = rec["path"].rpartition(".")
+    label = rec.get("label")
+    if head and tail.startswith("#") and label:
+        return f"{head}.{label}"
+    return rec["path"]
 
 
 def _cross_hierarchy(root_path: str, flops: Dict[str, dict]) -> dict:
@@ -90,12 +102,14 @@ def _cross_hierarchy(root_path: str, flops: Dict[str, dict]) -> dict:
     paths, never a dump (DESIGN.md section 4)."""
     root_subtree = _subtree_key(root_path)
     by_subtree: Dict[str, dict] = {}
-    for path in flops:
+    for path, rec in flops.items():
         key = _subtree_key(path)
         bucket = by_subtree.setdefault(key, {"count": 0, "examples": []})
         bucket["count"] += 1
         if len(bucket["examples"]) < 3:
-            bucket["examples"].append(path)
+            # Show the readable label for the register, not its `#id` segment,
+            # so the agent learns *which* registers the cone reaches.
+            bucket["examples"].append(_display_path(rec))
 
     outside = {k: v for k, v in by_subtree.items() if k != root_subtree}
     outside_examples: List[str] = []

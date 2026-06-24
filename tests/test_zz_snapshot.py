@@ -8,15 +8,16 @@ import os
 from naja_scope import api
 
 
-def test_save_snapshot_writes_netlist_and_sidecar(uart_session, tmp_path):
+def test_save_snapshot_writes_netlist_and_meta(uart_session, tmp_path):
     snap = str(tmp_path / "snap")
     os.makedirs(snap, exist_ok=True)
     saved = api.save_snapshot(snap)
-    assert saved["source_index"]["entries"] > 0
+    assert saved["path"] == snap
     files = set(os.listdir(snap))
     assert "snl.mf" in files
-    assert "naja_scope_source_index.json" in files
     assert "naja_scope_session.json" in files
+    # The source-index sidecar is gone (source is read on demand).
+    assert "naja_scope_source_index.json" not in files
 
 
 def test_snapshot_reload_roundtrip(uart_session, tmp_path):
@@ -29,13 +30,14 @@ def test_snapshot_reload_roundtrip(uart_session, tmp_path):
 
     loaded = api.load_snapshot(snap)
     assert loaded["top"]["model"] == "uart_top"
-    assert loaded["source_index"]["entries"] == saved["source_index"]["entries"]
 
-    # Names and source ranges survive the round-trip.
+    # Named paths, anonymous `#id` paths, and source ranges survive the
+    # round-trip (the `#id` segment is the FF's snapshot-stable getID()).
     out = api.resolve("uart_top.u_tx.u_div_cnt")
     assert out["matches"][0]["path"] == "uart_top.u_tx.u_div_cnt"
     drivers = api.get_drivers("uart_top.tx_o")
-    src = api.get_source(drivers["leaf_drivers"][0]["path"])
+    leaf_path = drivers["leaf_drivers"][0]["path"]
+    src = api.get_source(leaf_path)
     assert "always_ff" in src.get("text", "")
 
 

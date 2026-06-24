@@ -37,6 +37,7 @@ from typing import Dict, List, Optional
 from . import snl
 from .errors import ScopeError
 from .session import Session
+from .source_index import SrcRange
 
 # --- WORKAROUND: name-based clock/reset identification -----------------------
 # Identifying clocks, resets, and reset polarity by *port name* is fundamentally
@@ -183,16 +184,7 @@ def module_card(session: Session, module: str,
     if params:
         card["parameters"] = params
 
-    index = _safe_index(session)
-    if index is not None:
-        rng = index.module_range(module)
-        if rng:
-            card["src"] = rng.to_ref()
+    loc = snl.source_loc(design)
+    if loc:
+        card["src"] = SrcRange.from_loc(loc).to_ref()
     return card
-
-
-def _safe_index(session: Session) -> Optional[object]:
-    try:
-        return session.get_source_index()
-    except Exception:
-        return None

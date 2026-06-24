@@ -106,7 +106,7 @@ def _level_names(node: snl.InstNode, cap: int = _MAX_SUGGESTION_SCAN):
     """(child names, term names, net names) visible at one hierarchy level."""
     children, terms, nets = [], [], []
     for inst in node.design.getInstances():
-        children.append(inst.getName())
+        children.append(snl.inst_segment(inst))
         if len(children) >= cap:
             break
     for term in node.design.getTerms():
@@ -114,7 +114,9 @@ def _level_names(node: snl.InstNode, cap: int = _MAX_SUGGESTION_SCAN):
         if len(terms) >= cap:
             break
     for net in node.design.getNets():
-        nets.append(net.getName())
+        name = net.getName()
+        if name:  # anonymous nets have no addressable name
+            nets.append(name)
         if len(nets) >= cap:
             break
     return children, terms, nets

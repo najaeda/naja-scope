@@ -33,6 +33,7 @@ def _leaf_entry(inst_term, id_list) -> dict:
     model = inst.getModel()
     entry = {
         "path": snl.path_str_from_ids(id_list),
+        "label": snl.friendly_label(inst),
         "model": model.getName(),
         "pin": inst_term.getBitTerm().getName(),
     }

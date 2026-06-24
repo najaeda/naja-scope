@@ -23,6 +23,7 @@ the query_python escape hatch.
 from __future__ import annotations
 
 import difflib
+import re
 from dataclasses import dataclass
 from typing import Iterator, List, Optional, Tuple
 
@@ -113,6 +114,77 @@ def direction_str(direction) -> str:
     return str(direction).split(".")[-1].lower()
 
 
+# -- identity & display labels -----------------------------------------------
+#
+# SV lowering leaves primitive instances (FFs, gates) anonymous. Rather than an
+# O(netlist) eager naming pass, an anonymous instance is addressed by its stable
+# per-design id (`#<id>` == getID(), resolved via getInstanceByID, snapshot-
+# stable) and a human-readable label is derived lazily, only for the few objects
+# a response surfaces. Named instances keep their SV name as the path segment.
+#
+# A hierarchical object reference is, canonically, the top design's NLID
+# DesignReference + a vector of instanceIDs (this `#<id>` chain). The full model
+# is in docs/identity-and-addressing.md.
+
+_SANITIZE_RE = re.compile(r"\W+")
+
+
+def _sanitize(name: str) -> str:
+    return _SANITIZE_RE.sub("_", name).strip("_")
+
+
+def _net_base_name(net) -> str:
+    name = net.getName()
+    if name:
+        return name
+    try:
+        bus = net.getBus()
+        if bus is not None and bus.getName():
+            return f"{bus.getName()}_{net.getBit()}"
+    except Exception:
+        pass
+    return ""
+
+
+def inst_segment(inst) -> str:
+    """The addressable path segment for an instance: its SV name, or `#<id>`
+    for an anonymous (lowered) instance. Stable across snapshot reload."""
+    name = inst.getName()
+    return name if name else f"#{inst.getID()}"
+
+
+def friendly_label(inst) -> str:
+    """A readable, display-only label for an instance, derived from its driven
+    output net (`count_0_dffrn` for the FF driving count[0]). Not unique and not
+    an address — computed lazily for surfaced objects only."""
+    name = inst.getName()
+    if name:
+        return name
+    model = inst.getModel().getName() or "u"
+    base = model[5:] if model.startswith("naja_") else model
+    for it in inst.getInstTerms():
+        if it.getBitTerm().getDirection() != DIR_OUTPUT:
+            continue
+        net = it.getNet()
+        if net is None:
+            continue
+        netname = _sanitize(_net_base_name(net))
+        if netname:
+            return f"{netname}_{base}"
+    return base
+
+
+def instance_by_segment(design, segment: str):
+    """Inverse of inst_segment: resolve a path segment to a child instance —
+    `#<id>` via getInstanceByID, otherwise by SV name."""
+    if segment.startswith("#"):
+        try:
+            return design.getInstanceByID(int(segment[1:]))
+        except (ValueError, Exception):
+            return None
+    return design.getInstance(segment)
+
+
 # -- hierarchical instance occurrences ---------------------------------------
 
 @dataclass
@@ -169,17 +241,17 @@ def top_node() -> InstNode:
     return InstNode((d.getName(),), d, None, naja.SNLPath())
 
 
-def child_node(node: InstNode, name: str) -> Optional[InstNode]:
-    inst = node.design.getInstance(name)
+def child_node(node: InstNode, segment: str) -> Optional[InstNode]:
+    inst = instance_by_segment(node.design, segment)
     if inst is None:
         return None
-    return InstNode(node.names + (name,), inst.getModel(), inst,
+    return InstNode(node.names + (inst_segment(inst),), inst.getModel(), inst,
                     naja.SNLPath(node.snlpath, inst))
 
 
 def child_nodes(node: InstNode) -> Iterator[InstNode]:
     for inst in node.design.getInstances():
-        yield InstNode(node.names + (inst.getName(),), inst.getModel(), inst,
+        yield InstNode(node.names + (inst_segment(inst),), inst.getModel(), inst,
                        naja.SNLPath(node.snlpath, inst))
 
 
@@ -199,7 +271,7 @@ def assign_instances(design) -> Iterator:
 def non_assign_child_nodes(node: InstNode) -> Iterator[InstNode]:
     """child_nodes() restricted to non-assign children (submodules + leaves)."""
     for inst in non_assign_instances(node.design):
-        yield InstNode(node.names + (inst.getName(),), inst.getModel(), inst,
+        yield InstNode(node.names + (inst_segment(inst),), inst.getModel(), inst,
                        naja.SNLPath(node.snlpath, inst))
 
 
@@ -216,7 +288,7 @@ def node_from_ids(id_list: List[int]) -> InstNode:
     for i in id_list:
         inst = design.getInstanceByID(i)
         snlpath = naja.SNLPath(snlpath, inst)
-        names.append(inst.getName())
+        names.append(inst_segment(inst))
         design = inst.getModel()
     return InstNode(tuple(names), design, inst, snlpath)
 
@@ -228,7 +300,7 @@ def path_str_from_ids(id_list: List[int]) -> str:
         inst = design.getInstanceByID(i)
         if inst is None:
             break
-        parts.append(inst.getName())
+        parts.append(inst_segment(inst))
         design = inst.getModel()
     return ".".join(parts)
 

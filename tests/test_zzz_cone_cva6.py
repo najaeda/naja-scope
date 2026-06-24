@@ -49,7 +49,11 @@ def test_div_state_cone_crosses_hierarchy(cva6_session):
     assert "cva6.csr_regfile_i" in outside["subtrees"]
     assert "cva6.issue_stage_i" in outside["subtrees"]
 
-    # The verified golden registers appear by name in the flop frontier.
+    # The verified golden registers appear by their readable driven-net label
+    # (the flop instances themselves are anonymous, addressed by `#id`). Reaching
+    # priv_lvl_q (in csr_regfile_i, asserted outside-EX above) is the whole point.
+    flop_labels = " ".join(f.get("label", "") for f in out["frontier"]["flops"])
+    assert "priv_lvl_q" in flop_labels
+    # Submodule prefixes still carry real names in the `#id` paths.
     flop_paths = " ".join(f["path"] for f in out["frontier"]["flops"])
-    assert "csr_regfile_i.priv_lvl_q" in flop_paths
     assert "issue_stage_i.i_scoreboard" in flop_paths

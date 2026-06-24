@@ -48,10 +48,6 @@ def status() -> dict:
         "loaded": True,
         "top": _summary(top),
         "loaded_files": SESSION.loaded_files[:20],
-        "naming": SESSION.naming_stats,
-        "source_index": (SESSION.source_index.stats()
-                         if SESSION.source_index is not None
-                         else "not built yet (built lazily on first source query)"),
     }
     return out
 
@@ -63,7 +59,7 @@ def load_systemverilog(files: Optional[List[str]] = None,
     top_instance = SESSION.load_systemverilog(files or [], flist=flist,
                                               top=top,
                                               keep_assigns=keep_assigns)
-    return {"top": _summary(top_instance), "naming": SESSION.naming_stats}
+    return {"top": _summary(top_instance)}
 
 
 def load_verilog(files: List[str], keep_assigns: bool = True,
@@ -71,7 +67,7 @@ def load_verilog(files: List[str], keep_assigns: bool = True,
     top_instance = SESSION.load_verilog(
         files, keep_assigns=keep_assigns,
         allow_unknown_designs=allow_unknown_designs)
-    return {"top": _summary(top_instance), "naming": SESSION.naming_stats}
+    return {"top": _summary(top_instance)}
 
 
 def load_liberty(files: List[str]) -> dict:
@@ -96,9 +92,7 @@ def save_snapshot(directory: str) -> dict:
 
 def load_snapshot(directory: str) -> dict:
     top_instance = SESSION.load_snapshot(directory)
-    return {"top": _summary(top_instance),
-            "source_index": (SESSION.source_index.stats()
-                             if SESSION.source_index else None)}
+    return {"top": _summary(top_instance)}
 
 
 def reset_universe() -> dict:
