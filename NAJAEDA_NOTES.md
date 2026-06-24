@@ -14,25 +14,31 @@ use case.
 ## Feature requests
 
 1. **Expose `sv_src_*` RTL infos through the Python bindings** (the DESIGN.md
-   week-1 item). Today the only egress is
-   `dump_verilog(dumpRTLInfosAsAttributes=True)`; naja-scope works around it
-   by dumping annotated Verilog at index time and parsing the attributes back
-   (`src/naja_scope/source_index.py`). A `get_rtl_info()` /
-   `get_attributes()`-visible form on SNL objects removes the dump+parse.
-   See [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling)
-   for how to structure this so it is also cheap and serializable.
+   week-1 item). **RESOLVED for source ranges in najaeda 0.7.2:**
+   `SNLDesignObject.getSourceLoc()` / `hasSourceLoc()` read the range directly
+   (naja #389/#390), so the old dump-Verilog-and-reparse workaround is gone, and
+   `src/naja_scope/source_index.py` was since **deleted entirely** — ranges are
+   read on-demand via `getSourceLoc` (see `docs/identity-and-addressing.md`). A
+   broader `get_rtl_info()` / `get_attributes()`-visible egress (for the *other*
+   RTL infos, e.g. `sv_symbol_path`) + capnp serialization is still tracked in
+   [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling)
+   for the phase-2 cold-start tier.
 2. **`sv_symbol_path` RTL info** (slang hierarchical path) stamped at lowering
    time alongside `sv_src_*` — the persistent join key phase 2 needs to
    re-bind a live slang AST to a snapshot-loaded SNL (DESIGN.md prep hook 1).
    The path is *already computed* during lowering for naming
    (`SNLSVConstructor.cpp:15636`, `symbol.getHierarchicalPath()`); the ask is
    to intern and keep it. See [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling).
-3. **Stable names for lowered objects at construction time** — primitive
-   instances created by sequential/comb lowering are unnamed; the dumper
-   invents `instance_N` names. naja-scope names them post-load
-   (`src/naja_scope/naming.py`, derived from the driven net, e.g.
-   `tx_o_dff`); doing this during lowering would make names canonical
-   everywhere.
+3. **Stable names for lowered objects at construction time** — *SUPERSEDED, do
+   not implement.* Originally: lowered primitives are unnamed, so naja-scope
+   named them post-load (`naming.py`, driven-net-derived, e.g. `tx_o_dff`). The
+   chosen direction instead addresses an anonymous instance by its stable
+   per-design **id** (`getID()` / `getInstanceByID()`, the `#<id>` path segment,
+   snapshot-stable) and derives a friendly label lazily — no eager naming pass,
+   no naja-side construction naming. `naming.py` is deleted; see
+   `docs/identity-and-addressing.md` and
+   `docs/naja-feature-request-NLID-python-class.md` (the najaeda 0.7.7 `NLID`
+   class + `getObject` that back it).
 4. **`SNLLogicalCone` must cross SV-lowered logic gates** *(0.7.5 — shipped but
    blocked; the cone tool's intended C++ backend, requested in
    `docs/naja-feature-request-SNLLogicalCone.md`)*. `naja.SNLLogicalCone`
@@ -214,9 +220,11 @@ model:
    persistence story, not just a fast-reload convenience.
 
 Item 2 landed in najaeda 0.7.4: SV-snapshot reload now round-trips, so naja-if
-serialization is a real RTLInfos persistence path. naja-scope still builds the
-`source_index.py` sidecar (it carries the resolved-path bridge alongside the
-snapshot), and `test_snapshot_reload_roundtrip` is now a normal passing test.
+serialization is a real RTLInfos persistence path — and `getSourceLoc()` works
+post-reload, so source ranges survive a snapshot with **no sidecar**. (naja-
+scope's old `source_index.py` sidecar has since been deleted; ranges are read
+on-demand.) The snapshot round-trip is a normal passing test
+(`tests/test_zz_snapshot.py`).
 
 ### What exists today
 
@@ -246,18 +254,21 @@ Costs that matter at scale:
   perf report already counts `rtlInfoClonedEntries` and
   `cloneRTLInfosDuration` (`:3229-3232`), and DESIGN.md flags uniquification
   as exactly where naive maps break.
-- **Neither bound nor serialized is the whole reason
-  `src/naja_scope/source_index.py` exists** — the dump-Verilog-and-reparse
-  bridge is a pure workaround for these two egress gaps.
+- *(Historical)* the dump-Verilog-and-reparse bridge that
+  `src/naja_scope/source_index.py` once was is gone — `getSourceLoc()` (0.7.2)
+  replaced the reparse, and the prebuilt index itself was deleted (ranges read
+  on-demand). The RTLInfos egress/serialization gaps below still matter for the
+  richer `get_rtl_info()` phase-2 story, not for source ranges.
 
 ### Proposal A — restructure RTLInfos (cheapest first)
 
 A source range is a fixed-schema record, not open-ended metadata; it is being
 shoehorned into a string map.
 
-- **Level 0 — egress only (unblocks naja-scope now, no restructure).** Bind
-  `getRTLInfos()` to PyNaja and serialize it to capnp. Alone this deletes
-  `source_index.py` and fixes the phase-2 cold-start tier.
+- **Level 0 — egress only (no restructure).** Bind `getRTLInfos()` to PyNaja and
+  serialize it to capnp. (`source_index.py` is already gone — source ranges come
+  from `getSourceLoc`; this Level-0 egress is now about the *other* RTL infos,
+  e.g. `sv_symbol_path`, for the phase-2 cold-start tier.)
 - **Level 1 — typed slot + interned file (recommended).**
   ```cpp
   struct SNLSourceLoc {            // 16 bytes, POD, trivially copyable
