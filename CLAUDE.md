@@ -18,24 +18,26 @@ architecture, scope, phasing, and the tool API.
   layer.) If a capability is missing from raw naja, it becomes a naja feature
   request (local checkout: /Users/xtof/WORK/naja2) — no private hooks, no naja
   C++ build dependency in this repo.
-- Dependency: requires `najaeda>=0.7.6`. The source-access API (source ranges
-  / `getSourceLoc`, naja #389/#390) shipped to PyPI in 0.7.2; 0.7.4 fixes the
-  naja-if snapshot reload for SystemVerilog-loaded designs (the "model not
-  found" deserialize bug present 0.5.2–0.7.3) — the re-entrant RTLInfos
-  persistence path; 0.7.5 adds `naja.SNLLogicalCone`; 0.7.6 adds combinatorial
-  modeling on the lowered logic gates (and/or/not) so SNLLogicalCone crosses
-  them and reaches the cross-hierarchy flop frontier (on 0.7.5 it stopped at
-  un-modeled gate black boxes — see NAJAEDA_NOTES.md §4). `cone.py` is now built
-  ENTIRELY on `SNLLogicalCone` (the hand-rolled equipotential traversal is gone),
-  so the floor is 0.7.6. **0.7.6 is on PyPI**, so the canonical dev path is the
-  3.11 `.venv` (PyPI najaeda, `--system-site-packages`) — `./.venv/bin/python -m
-  pytest -q`. The `.venv314` dev venv (Python 3.14, the local naja build at
-  /Users/xtof/WORK/naja3 on a `.pth`) remains only for running against naja HEAD
-  ahead of a release; that build is compiled for Homebrew Python 3.14 and
-  segfaults under the 3.11 `.venv`, so the two are not interchangeable. Pin is
-  `najaeda>=0.7.6` in `pyproject.toml`. Earlier 0.5.x lacks the source-access API
-  entirely. See DESIGN.md fact 2 / Week 0 and NAJAEDA_NOTES.md bug §3 / feature
-  requests §4–7.
+- Dependency: requires `najaeda>=0.7.7`. Feature history (all present in the
+  0.7.7 floor): 0.7.2 shipped the source-access API (`getSourceLoc`, naja
+  #389/#390); 0.7.4 fixed the naja-if SV-snapshot reload; 0.7.5 added
+  `naja.SNLLogicalCone`; 0.7.6 added combinatorial modeling on the lowered gates
+  (so the cone reaches the cross-hierarchy flop frontier — `cone.py` is built
+  ENTIRELY on `SNLLogicalCone`) and partitioned `getInstances()` into
+  `getNonAssignInstances()`/`getAssignInstances()`; **0.7.7 adds the Python
+  `NLID` value class + `NLUniverse.getObject(NLID)`** — the identity layer
+  naja-scope addresses objects with (see docs/identity-and-addressing.md):
+  anonymous instances by `#<id>` (`getID`/`getInstanceByID`, snapshot-stable)
+  with friendly labels derived lazily, so there is NO eager naming/source-index
+  pass (`ensure_names`/`SourceIndex.build` are gone). **0.7.7 is not on PyPI yet
+  (pushed later)**, so dev runs against the local naja build via `.venv314`
+  (Python 3.14) + `PYTHONPATH=/Users/xtof/WORK/naja3/build/test/najaeda`:
+  `PYTHONPATH=/Users/xtof/WORK/naja3/build/test/najaeda ./.venv314/bin/python -m
+  pytest -q` (the build is compiled for Homebrew Python 3.14 and segfaults under
+  a 3.11 interpreter). The src refactor still runs on PyPI 0.7.6 (it only needs
+  `getID`/`getInstanceByID`), but the declared floor and identity model are
+  0.7.7. Pin is `najaeda>=0.7.7` in `pyproject.toml`. See DESIGN.md fact 2 /
+  Week 0, docs/identity-and-addressing.md, and NAJAEDA_NOTES.md.
 - Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
   slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
   passes.

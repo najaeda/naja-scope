@@ -90,15 +90,16 @@ the upstream bugs once tracked — parameter-specialization merging and naja-if
 SV-snapshot reload — are both fixed (see NAJAEDA_NOTES.md); the snapshot
 round-trip (`tests/test_zz_snapshot.py`) is a normal passing test.
 
-The `trace_cone` tool is built on naja's `SNLLogicalCone` and requires the gate
-combinatorial modeling added in **najaeda 0.7.6**; on 0.7.5 the cone stops at
-un-modeled logic gates and the cone tests fail. Until 0.7.6 is on PyPI, develop
-against the local naja build at `/Users/xtof/WORK/naja3`, which is compiled for
-Homebrew Python 3.14 (it segfaults under a 3.11 interpreter). Use the `.venv314`
-dev venv (Python 3.14; naja3 on a `.pth`; `mcp` + `pytest` installed):
+naja-scope targets **najaeda 0.7.7** — the Python `NLID` value class +
+`NLUniverse.getObject(NLID)` that back its object-identity model
+(`docs/identity-and-addressing.md`), plus the 0.7.6 gate combinatorial modeling
+`trace_cone` needs. **0.7.7 is not on PyPI yet** — until it is, develop against
+the local naja build at `/Users/xtof/WORK/naja3`, compiled for Homebrew Python
+3.14 (it segfaults under a 3.11 interpreter), via the `.venv314` dev venv
+(`mcp` + `pytest` installed) plus `PYTHONPATH`:
 
 ```sh
-./.venv314/bin/python -m pytest -q
+PYTHONPATH=/Users/xtof/WORK/naja3/build/test/najaeda ./.venv314/bin/python -m pytest -q
 ```
 
 The CVA6 cross-hierarchy cone regression (`tests/test_zzz_cone_cva6.py`) is
