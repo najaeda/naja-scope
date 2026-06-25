@@ -117,3 +117,33 @@ def test_api_get_intent_dispatch(ip):
         assert "error" in err
     finally:
         SESSION.intent = saved
+
+
+# -- productization: env opt-in + non-fatal auto-load ------------------------
+
+def test_auto_intent_env_parsing(monkeypatch):
+    for v in ("1", "true", "TRUE", "yes", "on"):
+        monkeypatch.setenv("NAJA_SCOPE_INTENT", v)
+        assert api._auto_intent() is True
+    for v in ("", "0", "off", "no"):
+        monkeypatch.setenv("NAJA_SCOPE_INTENT", v)
+        assert api._auto_intent() is False
+    monkeypatch.delenv("NAJA_SCOPE_INTENT", raising=False)
+    assert api._auto_intent() is False
+
+
+def test_attach_intent_explicit_raises_env_swallows(monkeypatch):
+    # With no flist/files captured, load_intent can't build: explicit must raise,
+    # the env opt-in must degrade (best-effort), never failing the load.
+    from naja_scope.session import SESSION
+    saved_spec, saved_intent = SESSION.load_spec, SESSION.intent
+    SESSION.load_spec, SESSION.intent = {}, None
+    try:
+        with pytest.raises(ScopeError):
+            api._attach_intent({"top": "x"}, explicit=True)
+        monkeypatch.setenv("NAJA_SCOPE_INTENT", "1")
+        out = api._attach_intent({"top": "x"}, explicit=False)
+        assert out["intent_loaded"] is False
+        assert "intent_note" in out
+    finally:
+        SESSION.load_spec, SESSION.intent = saved_spec, saved_intent

@@ -44,6 +44,35 @@ def _summary(node: snl.InstNode) -> dict:
     }
 
 
+# Env opt-in: auto-load the warm intent layer on every load, so a deployment can
+# enable get_intent without changing each load call (cf. NAJA_SCOPE_DISABLE_PYTHON).
+_INTENT_ENV = "NAJA_SCOPE_INTENT"
+
+
+def _auto_intent() -> bool:
+    return os.environ.get(_INTENT_ENV, "").lower() in ("1", "true", "yes", "on")
+
+
+def _attach_intent(out: dict, explicit: bool) -> dict:
+    """Load the intent layer into the session and annotate `out`.
+
+    `explicit` (intent=True passed by the caller) surfaces failures; the env
+    opt-in is best-effort — a missing pyslang or flist must not fail the load,
+    only leave get_intent in its graceful "not loaded" state.
+    """
+    if not (explicit or _auto_intent()):
+        return out
+    try:
+        SESSION.load_intent()
+        out["intent_loaded"] = SESSION.intent_available
+    except ScopeError as e:
+        if explicit:
+            raise
+        out["intent_loaded"] = False
+        out["intent_note"] = e.message
+    return out
+
+
 def status() -> dict:
     if not SESSION.has_top():
         return {"loaded": False}
@@ -52,6 +81,11 @@ def status() -> dict:
         "loaded": True,
         "top": _summary(top),
         "loaded_files": SESSION.loaded_files[:20],
+        # Phase-2 intent layer (get_intent): warm-only, so report whether it is
+        # live in this session and whether the inputs to (re)load it are known.
+        "intent_loaded": SESSION.intent_available,
+        "intent_loadable": bool((SESSION.load_spec or {}).get("flist")
+                                or (SESSION.load_spec or {}).get("files")),
     }
     return out
 
@@ -64,11 +98,7 @@ def load_systemverilog(files: Optional[List[str]] = None,
     top_instance = SESSION.load_systemverilog(files or [], flist=flist,
                                               top=top,
                                               keep_assigns=keep_assigns)
-    out = {"top": _summary(top_instance)}
-    if intent:
-        SESSION.load_intent()
-        out["intent_loaded"] = SESSION.intent_available
-    return out
+    return _attach_intent({"top": _summary(top_instance)}, explicit=intent)
 
 
 def load_intent(flist: Optional[str] = None, files: Optional[List[str]] = None,
@@ -110,9 +140,11 @@ def save_snapshot(directory: str) -> dict:
     return SESSION.save_snapshot(directory)
 
 
-def load_snapshot(directory: str) -> dict:
+def load_snapshot(directory: str, intent: bool = False) -> dict:
     top_instance = SESSION.load_snapshot(directory)
-    return {"top": _summary(top_instance)}
+    # intent re-elaborates from the flist persisted in the snapshot sidecar
+    # (the Compilation itself never serializes — see intent.py).
+    return _attach_intent({"top": _summary(top_instance)}, explicit=intent)
 
 
 def reset_universe() -> dict:

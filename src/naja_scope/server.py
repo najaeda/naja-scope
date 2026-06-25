@@ -40,7 +40,8 @@ def _tool(fn: Callable) -> Callable:
 
 @_tool
 def status() -> dict:
-    """Current session: loaded design summary, source-index state."""
+    """Current session: loaded design summary, and whether the phase-2 intent
+    layer is live (`intent_loaded`) / re-loadable (`intent_loadable`)."""
     return api.status()
 
 
@@ -84,9 +85,11 @@ def save_snapshot(directory: str) -> dict:
 
 
 @_tool
-def load_snapshot(directory: str) -> dict:
-    """Reload a save_snapshot directory in seconds (no re-elaboration)."""
-    return api.load_snapshot(directory)
+def load_snapshot(directory: str, intent: bool = False) -> dict:
+    """Reload a save_snapshot directory in seconds (no re-elaboration).
+    intent=True also re-elaborates the warm intent layer from the flist saved in
+    the snapshot (for get_intent)."""
+    return api.load_snapshot(directory, intent)
 
 
 @_tool

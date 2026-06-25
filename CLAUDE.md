@@ -38,9 +38,15 @@ architecture, scope, phasing, and the tool API.
   `getID`/`getInstanceByID`), but the declared floor and identity model are
   0.7.7. Pin is `najaeda>=0.7.7` in `pyproject.toml`. See DESIGN.md fact 2 /
   Week 0, docs/identity-and-addressing.md, and NAJAEDA_NOTES.md.
-- Phase 1 only (DESIGN.md §9): structural spine + source ranges. The living
-  slang AST layer (DESIGN.md "Phase 2") stays out of scope until the eval gate
-  passes.
+- Phase 1 (structural spine + source ranges) is the core. The phase-2 eval gate
+  has PASSED (scope+intent ≤ grep turns on cva6-small; docs/phase2-plan.md §4),
+  so the **route-1 living-intent prototype is now in**: `get_intent` over a
+  warm-only, opt-in `pyslang` re-elaboration (`intent.py`, behind the `session.py`
+  provider seam; optional `[intent]` dep). It is a PROTOTYPE — keep it
+  source-range/name-keyed and graceful when absent. The exact in-engine
+  `SNLDesignObject↔slang` link (P2.2, naja C++; FRs in
+  docs/naja-feature-request-slang-coupling.md) stays out of scope here — no naja
+  C++ build dependency in this repo.
 - Every tool response must be token-bounded: paginate lists, truncate cones
   with explicit markers, return counts and frontiers instead of dumps.
 - Object references are hierarchical path strings; responses include source

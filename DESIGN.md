@@ -111,6 +111,7 @@ Conventions (matter more than the tool list): object references are hierarchical
 | `get_module_card` | `{module}` | ports, params, counts, clocks/resets, protocol guess |
 | `find` | `{glob_or_regex, kind, limit}` | paginated matches |
 | `get_stats` | `{instance}` | exists today (instance_stats) |
+| `get_intent` | `{ref, want:auto\|type\|fsm_states\|parameters}` | phase-2 prototype (warm-only, route 1): enum members+encodings (incl. package typedefs) / symbolic parameter formula+value; degrades to a note when not loaded (`load_intent` / `intent=true` / `NAJA_SCOPE_INTENT`). See "Phase 2" + docs/phase2-plan.md §4 |
 | `query_python` | `{code, timeout}` | stdout/repr, sandboxed |
 
 `query_python` is the cheapest experiment: najaeda itself is the query language; LLMs know Python, not a future Cypher dialect. Watch what agents write there and promote recurring patterns into first-class tools.

@@ -131,7 +131,12 @@ class Session:
         with open(os.path.join(directory, _SIDECAR_META), "w",
                   encoding="utf-8") as f:
             json.dump({"source_dirs": self.source_dirs,
-                       "loaded_files": self.loaded_files}, f)
+                       "loaded_files": self.loaded_files,
+                       # Persist the elaboration inputs so the warm-only intent
+                       # layer can be re-elaborated after a cold snapshot reload
+                       # without re-specifying the flist (a Compilation never
+                       # serializes — see intent.py).
+                       "load_spec": self.load_spec}, f)
         return {"path": directory}
 
     def load_snapshot(self, directory: str) -> "snl.InstNode":
@@ -145,6 +150,7 @@ class Session:
                 meta = json.load(f)
             self.source_dirs = meta.get("source_dirs", [])
             self.loaded_files = meta.get("loaded_files", [])
+            self.load_spec = meta.get("load_spec", {}) or {}
         return self.require_top()
 
 
