@@ -48,7 +48,8 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 # must not reload/reset it.
 SCOPE_TOOLS = [
     "status", "resolve", "find", "get_hierarchy", "get_drivers", "get_loads",
-    "trace_cone", "get_source", "get_module_card", "get_stats", "query_python",
+    "trace_cone", "get_source", "get_module_card", "get_stats", "get_intent",
+    "query_python",
 ]
 ARM_A_ALLOWED = ",".join(f"mcp__naja-scope__{t}" for t in SCOPE_TOOLS)
 ARM_B_ALLOWED = "Bash,Read,Grep,Glob"
@@ -59,7 +60,9 @@ SHARED_SYS = ("End your reply with a single line of the form "
 ARM_A_SYS = ("You are answering a question about an elaborated SystemVerilog "
              "netlist using ONLY the naja-scope MCP tools (resolve, get_drivers, "
              "trace_cone, get_source, get_module_card, get_stats, find, "
-             "get_hierarchy). Do NOT read RTL source files directly. " + SHARED_SYS)
+             "get_hierarchy, and get_intent for source-level type/enum/parameter "
+             "facts the netlist erases in lowering). Do NOT read RTL source files "
+             "directly. " + SHARED_SYS)
 ARM_B_SYS = ("You are answering a question about a SystemVerilog design by "
              "searching and reading its source tree under the current directory "
              "with grep/ripgrep and file reads. " + SHARED_SYS)
@@ -137,10 +140,11 @@ def parse_claude_json(stdout: str) -> dict:
 
 class WarmServer:
     def __init__(self, design_key, host, port, ready_timeout,
-                 refresh_cache=False):
+                 refresh_cache=False, intent=False):
         self.design_key, self.host, self.port = design_key, host, port
         self.ready_timeout = ready_timeout
         self.refresh_cache = refresh_cache
+        self.intent = intent
         self.proc = None
         self.ready = None
         self.ready_file = tempfile.mktemp(suffix=".ready.json")
@@ -164,6 +168,8 @@ class WarmServer:
                "--ready-file", self.ready_file]
         if self.refresh_cache:
             cmd.append("--refresh-cache")
+        if self.intent:
+            cmd.append("--intent")
         print(f"[warm] starting: {' '.join(cmd)}", file=sys.stderr)
         self.proc = subprocess.Popen(cmd, env=os.environ.copy())
         t0 = time.time()
@@ -256,6 +262,9 @@ def main():
     ap.add_argument("--warm-ready-timeout", type=int, default=4500)
     ap.add_argument("--refresh-cache", action="store_true",
                     help="force arm-A warm server to re-elaborate (ignore snapshot cache)")
+    ap.add_argument("--intent", action="store_true",
+                    help="load the warm intent layer so arm A can call get_intent "
+                         "(phase-2 gate). Off by default (phase-1 baseline).")
     args = ap.parse_args()
 
     bank = load_bank(args.design)
@@ -288,7 +297,8 @@ def main():
         if "A" in arms:
             warm = WarmServer(args.design, args.host, args.port,
                               args.warm_ready_timeout,
-                              refresh_cache=args.refresh_cache)
+                              refresh_cache=args.refresh_cache,
+                              intent=args.intent)
             warm.start()
             mcp_config_path = warm.mcp_config()
         for q in bank:

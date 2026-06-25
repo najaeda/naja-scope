@@ -27,8 +27,11 @@ use case.
    time alongside `sv_src_*` — the persistent join key phase 2 needs to
    re-bind a live slang AST to a snapshot-loaded SNL (DESIGN.md prep hook 1).
    The path is *already computed* during lowering for naming
-   (`SNLSVConstructor.cpp:15636`, `symbol.getHierarchicalPath()`); the ask is
-   to intern and keep it. See [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling).
+   (`SNLSVConstructor.cpp:16313`, `symbol.getHierarchicalPath()`); the ask is
+   to intern and keep it. **Filed as a standalone FR:**
+   `docs/naja-feature-request-sv-symbol-path.md` (the cold-start tier-1 key that
+   the tier-2 coupling FR #9 degrades to). See also
+   [§ Design proposal](#design-proposal-rtlinfos-structuring--snlslang-coupling).
 3. **Stable names for lowered objects at construction time** — *SUPERSEDED, do
    not implement.* Originally: lowered primitives are unnamed, so naja-scope
    named them post-load (`naming.py`, driven-net-derived, e.g. `tx_o_dff`). The
@@ -141,6 +144,24 @@ use case.
    **Verified on PyPI 0.7.6 (2026-06-23): both bound on `SNLDesign`.** The
    `pyproject.toml` floor is `najaeda>=0.7.6` and the earlier `hasattr` fallback
    has been removed.
+
+9. **Keep the slang `Compilation` alive + expose the SNL↔slang link** (phase-2
+   P2.2; NAJAEDA_NOTES Proposal B tier 2). `compilation_` is a `unique_ptr`
+   member of the SV constructor (moved in at `SNLSVConstructor.cpp:1166,1193,
+   1259,2010`, used at `:1050`) and **dies with the constructor** — taking every
+   enum/typedef/param/process/assertion intent with it. The ask: a contained
+   ownership refactor moving the Compilation to a session-lifetime owner, plus a
+   `SNLDesignObject* ↔ const slang::ast::Symbol*` bimap stamped at the
+   uniquification clone site (`cloneRTLInfos` `:3512`/`:3534`, beside
+   `annotateSourceInfo` `:2755`), exposed as PyNaja `ast_symbol_of` /
+   `snl_objects_of` so pyslang rides on top as the query engine. This is the only
+   sound link across uniquification (1→N) and bit-blasting (anonymous
+   primitives), where the route-1 prototype's name/range matching collides.
+   **Now justified, not speculative:** the naja-scope route-1 prototype passed its
+   eval gate on cva6-small (scope+intent ≤ grep turns; see
+   `docs/phase2-plan.md` §4). **Filed:**
+   `docs/naja-feature-request-slang-coupling.md`. Depends on FR #2
+   (`sv_symbol_path`) for the cold-start tier.
 
 ## Bugs found
 

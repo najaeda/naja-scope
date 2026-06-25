@@ -79,9 +79,22 @@ def main() -> None:
     ap.add_argument("--ready-file", default=None)
     ap.add_argument("--refresh-cache", action="store_true",
                     help="ignore any cached snapshot and re-elaborate from source")
+    ap.add_argument("--intent", action="store_true",
+                    help="also load the warm intent layer (slang re-elaboration) "
+                         "so get_intent is available (phase-2 gate, arm A)")
     args = ap.parse_args()
 
     summary = load_design(args.design, refresh_cache=args.refresh_cache)
+    if args.intent:
+        spec = design_registry.get(args.design)
+        load = spec["load"]
+        t0 = time.time()
+        api.load_intent(flist=load.get("flist"), files=load.get("files"),
+                        top=spec.get("top"), env=spec.get("env"))
+        summary["intent_loaded"] = api.SESSION.intent_available
+        summary["intent_seconds"] = round(time.time() - t0, 2)
+        print(f"[serve] intent layer loaded in {summary['intent_seconds']}s",
+              file=sys.stderr)
     if args.transport == "sse":
         server.mcp.settings.host = args.host
         server.mcp.settings.port = args.port

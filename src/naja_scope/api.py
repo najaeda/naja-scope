@@ -59,11 +59,27 @@ def status() -> dict:
 def load_systemverilog(files: Optional[List[str]] = None,
                        flist: Optional[str] = None,
                        top: Optional[str] = None,
-                       keep_assigns: bool = True) -> dict:
+                       keep_assigns: bool = True,
+                       intent: bool = False) -> dict:
     top_instance = SESSION.load_systemverilog(files or [], flist=flist,
                                               top=top,
                                               keep_assigns=keep_assigns)
-    return {"top": _summary(top_instance)}
+    out = {"top": _summary(top_instance)}
+    if intent:
+        SESSION.load_intent()
+        out["intent_loaded"] = SESSION.intent_available
+    return out
+
+
+def load_intent(flist: Optional[str] = None, files: Optional[List[str]] = None,
+                top: Optional[str] = None, env: Optional[dict] = None) -> dict:
+    """Build the warm-only intent layer (separate pyslang re-elaboration).
+    Reuses inputs captured at SNL load when omitted; after a cold snapshot load
+    the flist/top must be supplied."""
+    SESSION.require_top()
+    SESSION.load_intent(flist=flist, files=files, top=top, env=env)
+    return {"intent_loaded": SESSION.intent_available,
+            "flist": SESSION.intent.flist, "top": SESSION.intent.top}
 
 
 def load_verilog(files: List[str], keep_assigns: bool = True,
@@ -387,6 +403,36 @@ def get_stats(path: Optional[str] = None, limit: Optional[int] = None,
         "total_models": len(models),
         **envelope,
     }
+
+
+# -- intent layer (phase 2) -----------------------------------------------------------
+
+def get_intent(ref: str, want: str = "auto") -> dict:
+    """Query the living-intent layer for source-level facts erased by lowering.
+
+    Warm-only (DESIGN.md "Snapshot asymmetry"): if the intent layer is not
+    loaded, this degrades gracefully — the structural source range is still
+    available via get_source.
+    """
+    if not SESSION.intent_available:
+        return {"intent_loaded": False,
+                "note": ("intent layer not loaded; source range is available "
+                         "via get_source. Load it with load_intent (warm "
+                         "sessions only).")}
+    ip = SESSION.intent
+    try:
+        if want == "auto":
+            return ip.describe(ref)
+        if want == "type":
+            return {"intent": "type", **ip.get_type(ref)}
+        if want in ("fsm_states", "enum"):
+            return {"intent": "fsm_states", **ip.get_fsm_states(ref)}
+        if want == "parameters":
+            return {"intent": "parameters", **ip.get_parameters(ref)}
+        raise ScopeError(
+            f"unknown want={want!r}; use auto|type|fsm_states|parameters")
+    except ScopeError as e:
+        return e.to_dict()
 
 
 # -- escape hatch ---------------------------------------------------------------------

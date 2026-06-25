@@ -19,11 +19,21 @@ _SIDECAR_META = "naja_scope_session.json"
 
 
 class Session:
-    """Structural provider: live SNL + source index + load metadata."""
+    """Structural provider: live SNL + source index + load metadata.
+
+    Phase 2 (DESIGN.md prep hook 2) adds an optional `IntentProvider` next to
+    this StructuralProvider: `self.intent`, built by `load_intent`. It is
+    warm-only (a slang Compilation is never serializable — see intent.py), so it
+    is absent after a cold snapshot load until `load_intent` re-elaborates.
+    """
 
     def __init__(self):
         self.source_dirs: List[str] = []
         self.loaded_files: List[str] = []
+        # Inputs captured at elaboration so load_intent can re-elaborate the
+        # SAME design in slang (a snapshot does not carry the flist).
+        self.load_spec: dict = {}
+        self.intent = None  # Optional[intent.IntentProvider]
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -57,6 +67,8 @@ class Session:
         self._record_sources(files)
         if flist:
             self._record_sources([flist])
+        self.load_spec = {"files": list(files or []), "flist": flist,
+                          "top": top}
         return snl.top_node()
 
     def load_verilog(self, files: List[str], keep_assigns: bool = True,
@@ -64,7 +76,39 @@ class Session:
         loader.load_verilog(files, keep_assigns=keep_assigns,
                             allow_unknown_designs=allow_unknown_designs)
         self._record_sources(files)
+        self.load_spec = {"files": list(files or []), "flist": None,
+                          "top": None}
         return snl.top_node()
+
+    # -- intent layer (phase 2) ----------------------------------------------
+
+    def load_intent(self, flist: Optional[str] = None,
+                    files: Optional[List[str]] = None,
+                    top: Optional[str] = None,
+                    env: Optional[dict] = None) -> "intent.IntentProvider":
+        """Build + elaborate the warm-only intent layer (a separate pyslang
+        re-elaboration). Falls back to the inputs captured at SNL load, so after
+        `load_systemverilog` no arguments are needed; after a cold snapshot
+        load the flist/top must be supplied (the snapshot does not carry them).
+        """
+        from . import intent as intent_mod
+        spec = self.load_spec or {}
+        provider = intent_mod.IntentProvider(
+            files=files if files is not None else spec.get("files"),
+            flist=flist if flist is not None else spec.get("flist"),
+            top=top if top is not None else spec.get("top"),
+            env=env)
+        if not provider.flist and not provider.files:
+            raise ScopeError(
+                "load_intent needs a flist or files to re-elaborate; a cold "
+                "snapshot load does not carry them — pass flist=/top=.")
+        provider.ensure()
+        self.intent = provider
+        return provider
+
+    @property
+    def intent_available(self) -> bool:
+        return self.intent is not None and self.intent.loaded
 
     # -- source resolution ---------------------------------------------------
 

@@ -243,6 +243,72 @@ questions:
       resolves it directly.
     check: {type: any_of, groups: [["priv_lvl_m", "priv_lvl_s", "priv_lvl_u"]]}
 
+  # --- Symbolic-parameter-meaning gate (docs/phase2-plan.md §2, P0) ---------
+  # These ask for a parameter's SYMBOLIC expression (the formula / what the
+  # value depends on), which lowering discards keeping only the elaborated int.
+  # A localparam is not an SNL netlist object, so phase-1 scope has no handle to
+  # reach it at all (expected FAIL); grep finds the source line (baseline). A
+  # phase-2 get_intent(param) returns expr + resolved value in one call. Values
+  # verified via the IntentProvider (pyslang) on both configs, 2026-06-25.
+  - id: cva6-plen-param
+    category: intent
+    intent: true
+    # PLEN = physical address width, a PACKAGE localparam (riscv_pkg.sv:26)
+    # defined by a ternary on XLEN: (XLEN==32) ? 34 : 56. Config-dependent.
+    question: >
+      What is the parameter riscv::PLEN, what value does it take in this
+      configuration, and what does that value depend on?
+    golden: >
+      riscv::PLEN is the physical address width. It is defined symbolically as
+      (XLEN == 32) ? 34 : 56, so on this cv64/RV64 config it is 56 (it would be
+      34 on RV32). The formula -- the dependence on XLEN -- is lost in lowering;
+      only the integer width survives.
+    check: {type: any_of, groups: [["56", "xlen"], ["56", "34"]]}
+    by_config:
+      cva6-small:
+        golden: >
+          riscv::PLEN is the physical address width, defined as
+          (XLEN == 32) ? 34 : 56; on this cv32/RV32 config it is 34 (56 on RV64).
+        check: {type: any_of, groups: [["34", "xlen"], ["34", "56"]]}
+
+  - id: cva6-csr-counter-width
+    category: intent
+    intent: true
+    # SELECT_COUNTER_WIDTH: a module localparam in csr_regfile (csr_regfile.sv:204),
+    # = CVA6Cfg.IS_XLEN64 ? 6 : 5. Same module as priv_lvl_q. Config-dependent.
+    question: >
+      The localparam SELECT_COUNTER_WIDTH inside cva6.csr_regfile_i -- what value
+      does it have in this configuration and what determines it?
+    golden: >
+      It is CVA6Cfg.IS_XLEN64 ? 6 : 5, so 6 on this XLEN=64 config (5 on
+      XLEN=32). The symbolic dependence on the XLEN-64 config flag is lost in
+      lowering; only the resolved width remains.
+    check: {type: any_of, groups: [["6", "xlen"], ["6", "5"]]}
+    by_config:
+      cva6-small:
+        golden: >
+          It is CVA6Cfg.IS_XLEN64 ? 6 : 5, so 5 on this XLEN=32 config (6 on
+          XLEN=64).
+        check: {type: any_of, groups: [["5", "xlen"], ["5", "6"]]}
+
+  - id: cva6-loadbuf-id-bits
+    category: intent
+    intent: true
+    # REQ_ID_BITS in the load_unit (load_unit.sv:113):
+    # CVA6Cfg.NrLoadBufEntries > 1 ? $clog2(CVA6Cfg.NrLoadBufEntries) : 1.
+    # A $clog2-derived width; value 1 on both configs but the FORMULA (what the
+    # width is derived from) is the recovered intent.
+    question: >
+      The localparam REQ_ID_BITS in the load_unit
+      (cva6.ex_stage_i.lsu_i.i_load_unit) -- what is the expression that defines
+      it, and what does it derive the width from?
+    golden: >
+      REQ_ID_BITS = (CVA6Cfg.NrLoadBufEntries > 1) ? $clog2(CVA6Cfg.NrLoadBufEntries)
+      : 1 -- the request-id width is derived (via $clog2) from the number of
+      load-buffer entries; it elaborates to 1 here. The $clog2-of-NrLoadBufEntries
+      formula is lost in lowering, which keeps only the width.
+    check: {type: any_of, groups: [["clog2", "nrloadbufentries"], ["clog2", "load", "buffer"]]}
+
   - id: cva6-div-cone-crosshier
     category: connectivity
     intent: false

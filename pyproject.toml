@@ -14,6 +14,14 @@ dependencies = [
     "mcp>=1.2",
 ]
 
+[project.optional-dependencies]
+# Phase-2 living-intent layer (get_intent): a separate pyslang re-elaboration,
+# warm-only and optional — the structural tools degrade gracefully without it
+# (intent.py imports pyslang lazily). naja's slang is plain upstream master, so
+# the released PyPI pyslang is close enough for declaration-level queries; see
+# docs/phase2-plan.md §4.
+intent = ["pyslang>=11"]
+
 [project.scripts]
 naja-scope-mcp = "naja_scope.server:main"
 

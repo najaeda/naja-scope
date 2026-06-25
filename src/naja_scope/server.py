@@ -48,10 +48,12 @@ def status() -> dict:
 def load_systemverilog(files: Optional[List[str]] = None,
                        flist: Optional[str] = None,
                        top: Optional[str] = None,
-                       keep_assigns: bool = True) -> dict:
+                       keep_assigns: bool = True,
+                       intent: bool = False) -> dict:
     """Elaborate SystemVerilog (files and/or an flist; optional top module).
-    Names anonymous objects so everything is path-addressable."""
-    return api.load_systemverilog(files, flist, top, keep_assigns)
+    Names anonymous objects so everything is path-addressable.
+    intent=True also loads the warm intent layer (slang AST) for get_intent."""
+    return api.load_systemverilog(files, flist, top, keep_assigns, intent)
 
 
 @_tool
@@ -171,6 +173,30 @@ def get_stats(path: Optional[str] = None, limit: Optional[int] = None,
     """Aggregated instance statistics per model under an instance
     (default top). Paginated."""
     return api.get_stats(path, limit, cursor)
+
+
+@_tool
+def get_intent(ref: str, want: str = "auto") -> dict:
+    """Source-level INTENT a netlist erases in lowering (phase 2, warm-only).
+    Use when the answer is in the SystemVerilog *type/declaration*, not the
+    flattened gates: enum/typedef state names + encodings (incl. PACKAGE
+    typedefs whose members live in another file), and symbolic PARAMETER
+    expressions (the formula behind a baked-in width).
+    ref: a hierarchical path ('cva6.csr_regfile_i.priv_lvl_q'), a package member
+    ('riscv::PLEN'), or an instance path for its parameters.
+    want: auto | type | fsm_states | parameters. If the intent layer is not
+    loaded, returns a note and you should fall back to get_source."""
+    return api.get_intent(ref, want)
+
+
+@_tool
+def load_intent(flist: Optional[str] = None,
+                files: Optional[List[str]] = None,
+                top: Optional[str] = None) -> dict:
+    """Build the warm intent layer (slang re-elaboration) for get_intent.
+    Reuses the flist/files from load_systemverilog when omitted; after a cold
+    snapshot load, pass the original flist/top."""
+    return api.load_intent(flist, files, top)
 
 
 @_tool

@@ -88,6 +88,28 @@ DESIGN.md's sequence is "prototype with option 1, productize with option 2, hold
 3 in reserve." Made concrete and gated:
 
 ### P2.0 — prototype (option 1: separate pyslang re-elaboration), zero naja C++
+
+**Status (2026-06-25): the slang-source decision is RESOLVED and the prototype is
+BUILT; only the agentic gate remains.** Route **1 (PyPI pyslang 11.0.0 in the
+warm .venv)** was chosen over route 2 (Compilation alive in naja.so — that is
+P2.2, and CLAUDE.md forbids a naja C++ build dependency in this repo). The
+divergence worry the plan raised is small here: naja's `slang` remote
+(`github.com/najaeda/slang`) is at `a6285d93` (`v10.0-403`) whose HEAD is a plain
+merge of upstream `MikePopoloski/master` with **no semantic fork patches** — every
+commit is upstream-authored. So PyPI pyslang differs only by released-version
+drift, and the gate queries are **declaration-level** (enum members, parameter
+initializer text, register→type), robust to that drift and to elaboration-
+hierarchy divergence (which bites instance-coupling = P2.2's exact bimap, not
+this). Backstop if a real range ever diverges: naja's slang submodule ships
+`pyslang/` for an exact-commit build — still route 1, no naja C++. Built:
+`src/naja_scope/intent.py` (`IntentProvider`), `api.get_intent` + `load_intent`,
+the `session.py` seam, `tests/test_intent.py` (11 tests; 52/52 total), the three
+`cva6-*` symbolic-param questions, and the `--intent` flag in the eval harness
+(`serve.py`/`run_eval.py`, with `get_intent` added to `SCOPE_TOOLS`). Validated:
+on cva6-small the warm server reloads SNL from snapshot (~8s) and re-elaborates
+the intent layer in slang (~0.1s, lazy) in the same process, and `get_intent`
+answers all four gate refs correctly. Pending: the agentic gate run below.
+
 - Keep a `slang`/`pyslang` re-elaboration of the design alive in the warm server
   process, beside the SNL session. Build a *lossy* range-keyed
   `SNLDesignObject → slang Symbol` lookup (good enough for a prototype; exact
@@ -107,6 +129,26 @@ DESIGN.md's sequence is "prototype with option 1, productize with option 2, hold
   (`f628622`), so they no longer discriminate. If the intent layer doesn't beat
   grep on the package/symbolic cases, **stop** — the living AST isn't worth the
   productization cost, and that is a real outcome the eval was built to detect.
+- **GATE RESULT (2026-06-25) — PASS; Phase 2 proceeds to P2.2.** Ran
+  `run_eval.py --design cva6-small --arm both --intent` on the four gate IDs
+  (privlvl-enum + the three symbolic-param questions). Both arms 4/4 correct;
+  **total turns scope+intent 18 vs grep 23** (results
+  `eval/results/cva6-small_20260625-161503`). Per question (turns scope+intent /
+  grep): `cva6-privlvl-enum` **4 / 4** — the package-typedef-enum gate moved from
+  phase-1 **0/1 (max-turns FAIL)** to a grep-tying PASS, exactly the criterion
+  above, the agent doing `resolve → get_intent(priv_lvl_q)`;
+  `cva6-csr-counter-width` **4 / 11** — the decisive win, a config-struct
+  localparam (`CVA6Cfg.IS_XLEN64 ? 6 : 5`) where grep finds the formula but must
+  chase the config to resolve the value, while `get_intent` returns expr+value in
+  one call; `cva6-plen-param` 6 / 5 and `cva6-loadbuf-id-bits` 4 / 3 — grep ~1
+  turn cheaper on the two trivially-greppable package/module localparams
+  (expected; the weak-signal tier, like reset-polarity). Net: scope+intent
+  reaches all four at ≤ grep's aggregate turns and decisively beats grep exactly
+  where the answer requires crossing files or resolving config — the intent
+  layer's thesis. One harness fix was needed for a *fair* gate: `ARM_A_SYS` must
+  NAME `get_intent` among the scope tools (it enumerates them and says "ONLY");
+  the first run, without it, had the agent hunt via `ToolSearch` and hit
+  max-turns — a prompt bug, not a product bug.
 - Risks at this tier (DESIGN.md §"Exposure options" 1): double elaboration +
   memory; **divergence** if the prototype's slang version/flags differ from
   naja's fork → mismatched hierarchies. Mitigate by pinning the same slang commit;
