@@ -11,6 +11,38 @@ Both arms pay the same Claude Code overhead, so the per-arm delta is the signal.
 Runs on 2026-06-20 with `claude` 2.1.185, model claude-opus-4-8, max-turns 12.
 Raw per-question JSON is under `eval/results/<design>_<timestamp>/` (gitignored).
 
+## Update — 0.7.7 re-validation after the id-addressing refactor (2026-06-25)
+
+naja-scope's object addressing was reworked (see `docs/identity-and-addressing.md`):
+the O(netlist) eager naming pass (`ensure_names`) and the prebuilt source index
+were **deleted**. An anonymous lowered instance is now addressed by its stable
+per-design id (`#<id>` via `getID`/`getInstanceByID`, snapshot-stable) with a
+friendly label (`state_q_dffrn__w2`) derived lazily for display, and source
+ranges are read on-demand via `getSourceLoc`. This rests on the najaeda **0.7.7**
+`NLID` value class + `NLUniverse.getObject`.
+
+Re-validated end-to-end on the **0.7.7 PyPI wheel** (the dependency users install):
+
+| layer | result |
+|---|---|
+| unit tests | 41/41 |
+| UART eval | scope **9/9**, grep 8/9 |
+| cva6-small eval | scope **12/13**, grep 8/13 |
+
+**No regression.** Scope holds 12/13 on cv32 (== the baseline below). Every
+question the refactor touched passes — including the `#id`+label driver
+(`cva6-div-state-driver`) and the cross-hierarchy cone (`cva6-div-cone-crosshier`,
+its frontier now showing `priv_lvl_q`/`mstatus_q` labels) — and the decisive
+scope-only structural class is 100% (grep wrong on all 5). Scope's single miss
+was `cva6-ptw-fsm-states` (the costly intent class) hitting **max-turns with an
+empty answer — run variance, not a navigation break**: it passes on re-run (15
+turns, naming `IDLE` at `cva6_ptw.sv:659`). Side win: the deleted Python passes
+dominated the old multi-minute cv32 cold load; naja's own elaboration is ~tens of
+seconds (measured ~50 s for cv64), so cold load is now bounded by naja, not the
+passes. The cv64 headline below is the 2026-06-20 run and has **not** yet been
+re-run on the 0.7.7 wheel (optional); it measures the same structural classes
+cva6-small just re-confirmed.
+
 ## Headline
 
 | design | arm | correct | input tok (incl. cache) | output tok | turns |
