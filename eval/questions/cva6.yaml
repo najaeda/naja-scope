@@ -211,11 +211,37 @@ questions:
       The page-table-walker (cva6_ptw) FSM state register is how many bits wide,
       and what is its reset (initial) state called?
     golden: >
-      3-bit state register (state_q[2:0]); its reset/initial state is IDLE. The
-      other symbolic state-enum names are lost in lowering (enum -> bits) - a
-      phase-1 limitation; only IDLE survives because it appears literally in the
-      always_ff reset branch.
+      3-bit state register (state_q, enum logic [2:0]); its reset/initial state
+      is IDLE. The full state enum (IDLE, WAIT_RVALID, PROPAGATE_ERROR,
+      PROPAGATE_ACCESS_ERROR, KILL_REQ, LATENCY) is declared INLINE just above the
+      register (cva6_ptw.sv:107-116), so phase-1 recovers it from a single
+      get_source with a declaration-aware window. Contrast cva6-privlvl-enum,
+      whose type is a PACKAGE typedef phase-1 cannot reach -- the real phase-2 gate.
     check: {type: any_of, groups: [["idle"]]}
+
+  - id: cva6-privlvl-enum
+    category: intent
+    intent: true
+    # PHASE-2 GATE (the question that actually needs the slang-AST link).
+    # priv_lvl_q is typed riscv::priv_lvl_t -- a PACKAGE typedef enum in
+    # riscv_pkg.sv, NOT inline. get_source on priv_lvl_q shows only the typedef
+    # name at csr_regfile.sv:248; the member values live in a different file
+    # (riscv_pkg.sv:31-36) that scope (no source-file access, enum types erased
+    # in lowering) cannot reach -- so scope is expected to FAIL this in phase 1
+    # while grep passes. A phase-2 get_type(priv_lvl_q) would resolve the members
+    # structurally in one call. Config-independent (RISC-V privilege enum, 2-bit
+    # on cv32/cv64).
+    question: >
+      The privilege-level register cva6.csr_regfile_i.priv_lvl_q is enum-typed.
+      What is its type called, and what symbolic values (enum members) can it
+      take?
+    golden: >
+      Type riscv::priv_lvl_t, a 2-bit package typedef enum (riscv_pkg.sv:31-36)
+      with members PRIV_LVL_M (2'b11), PRIV_LVL_HS (2'b10), PRIV_LVL_S (2'b01),
+      PRIV_LVL_U (2'b00). The member names live in the package, not at the
+      register declaration, so phase-1 must cross to riscv_pkg; phase-2 get_type
+      resolves it directly.
+    check: {type: any_of, groups: [["priv_lvl_m", "priv_lvl_s", "priv_lvl_u"]]}
 
   - id: cva6-div-cone-crosshier
     category: connectivity

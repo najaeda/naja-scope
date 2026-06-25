@@ -26,6 +26,10 @@ from .session import SESSION
 MAX_SOURCE_LINES = 120
 DEFAULT_SOURCE_CONTEXT = 3
 QUERY_OUTPUT_CAP = 8000
+# Declaration-aware get_source: how far above a net/term declaration to look for
+# an inline enum/struct/typedef block whose members to pull in.
+_DECL_MAX_UP = 20
+_DECL_KEYWORDS = ("enum", "struct", "union", "typedef")
 
 
 # -- lifecycle ----------------------------------------------------------------
@@ -269,6 +273,24 @@ def get_source(path: str, context_lines: int = DEFAULT_SOURCE_CONTEXT) -> dict:
         lines = f.readlines()
     start = max(1, rng.line - context_lines)
     end = min(len(lines), rng.end_line + context_lines)
+    # Declaration-aware upward window: a net/term source range is a *declaration*
+    # (e.g. `} state_q, state_d;`). When an inline `enum`/`struct`/`typedef` block
+    # opens just above it, pull that block in so its members (FSM state names,
+    # etc.) are visible in one call. Stops at a blank line, and does nothing when
+    # the type is referenced (e.g. a package typedef `riscv::priv_lvl_t x;`) with
+    # no block above — exactly the case that needs the phase-2 intent layer.
+    if resolved.kind in ("net", "term"):
+        lo = max(1, rng.line - _DECL_MAX_UP)
+        probe = rng.line
+        while probe > lo:
+            probe -= 1
+            stripped = lines[probe - 1].strip()
+            if not stripped:
+                break
+            if any(stripped.startswith(kw) or f" {kw} " in stripped
+                   for kw in _DECL_KEYWORDS):
+                start = min(start, probe)
+                break
     selected = lines[start - 1:end]
     truncated = False
     if len(selected) > MAX_SOURCE_LINES:
