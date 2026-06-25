@@ -43,17 +43,31 @@ enum/state-name and symbolic-parameter recovery — *not* a broad living-AST bui
 It does not yet justify the naja C++ ownership refactor; that waits behind a
 measured prototype win (§4).
 
+**Update (2026-06-25) — the inline cases are now phase-1-solved; the gate moved.**
+`get_source` gained a declaration-aware upward window (commit `f628622`): when a
+register's declaration sits just below an inline `enum`/`struct`/`typedef`, that
+block (its members) is pulled in. So `cva6-ptw-fsm-states` now passes reliably at
+**7 turns** (was 9→13 max-turns→15) with *no* AST link — its enum is inline. The
+inline FSM-state questions therefore **no longer justify Phase 2**; phase-1 reaches
+them. The justification narrows to what source-windowing structurally *cannot*
+reach: the new **`cva6-privlvl-enum`** gate, where the state type is a **package
+typedef** (`riscv::priv_lvl_t`) whose members live in another file — scope **fails
+it (0/1, max-turns)** while grep passes (4 turns). That, plus symbolic params and
+process structure, is the real Phase-2 case.
+
 ## 2. What Phase 2 must buy, mapped to questions
 
 | Phase-2 capability (DESIGN.md §2 "lost in lowering") | eval question it makes cheap | priority |
 |---|---|---|
-| enum/struct type names before bit-blasting (FSM state names) | `uart-fsm-state-names`, `cva6-ptw-fsm-states` | **P0** |
+| enum/struct type names **declared in a package/typedef** (members in another file) | **`cva6-privlvl-enum`** — scope fails phase-1 (0/1, max-turns) | **P0** |
 | symbolic parameter expressions (value kept, formula lost) | *new* questions to author (symbolic param meaning) | **P0** |
 | process structure (which `always_ff`, sync/async reset, sensitivity) | `*-reset-polarity` (today name-based) | P1 |
+| **inline** enum/struct names (declared next to the register) | `uart-fsm-state-names`, `cva6-ptw-fsm-states` — **phase-1-solved** by the declaration-aware `get_source` window; *not* a Phase-2 gate | — |
 | assertions/SVA, packages/imports, generate provenance | none yet — defer until a question needs them | P2 |
 
-The bank currently has no *symbolic-parameter-meaning* question (DESIGN.md §9
-calls for one). Authoring 2–3 is part of P2.0 so the gate has something to move.
+`cva6-privlvl-enum` is the authored enum gate (package typedef). The bank still
+has no *symbolic-parameter-meaning* question (DESIGN.md §9 calls for one);
+authoring 2–3 is part of P2.0 so the gate has a second capability to move.
 
 ## 3. Prep-hook status (DESIGN.md §9 "prep hooks", cheap things done now)
 
@@ -82,14 +96,17 @@ DESIGN.md's sequence is "prototype with option 1, productize with option 2, hold
   (enum names + encodings for a state register) and **`get_type(ref)`**; surface as
   one MCP tool (e.g. `get_intent`).
 - Author 2–3 **symbolic-parameter-meaning** intent questions for the bank
-  (`intent: true`), with goldens.
-- **GATE (the decision):** re-run the eval's **intent subset** (the four rows in
-  §1 + the new symbolic-param questions) with the IntentProvider enabled. Phase 2
-  proceeds **iff** scope-with-intent answers the FSM-state-name and symbolic-param
-  questions in **≤ grep's turns/tokens** (target: `uart-fsm-state-names` from 11
-  turns → ≤3). If it does not beat the phase-1 source-read path on cost, **stop** —
-  the living AST is not worth the productization cost, and that is a real outcome
-  the eval was built to detect.
+  (`intent: true`), with goldens. (The enum gate `cva6-privlvl-enum` is already
+  authored.)
+- **GATE (the decision):** re-run the gate questions — **`cva6-privlvl-enum`**
+  (package-typedef enum; scope currently **0/1, max-turns**) plus the new
+  symbolic-param questions — with the IntentProvider enabled. Phase 2 proceeds
+  **iff** `get_type`/`get_fsm_states` lets scope **answer them at ≤ grep's
+  turns/tokens** (privlvl-enum: 0/1 → 1/1 within grep's ~4 turns). The *inline*
+  FSM-state questions are **out of the gate** — phase-1 already solves them
+  (`f628622`), so they no longer discriminate. If the intent layer doesn't beat
+  grep on the package/symbolic cases, **stop** — the living AST isn't worth the
+  productization cost, and that is a real outcome the eval was built to detect.
 - Risks at this tier (DESIGN.md §"Exposure options" 1): double elaboration +
   memory; **divergence** if the prototype's slang version/flags differ from
   naja's fork → mismatched hierarchies. Mitigate by pinning the same slang commit;
@@ -134,7 +151,10 @@ for the intent win, and §5's Risk 5 (premature platform-building) applies.
 
 1. File the `sv_symbol_path` naja feature request (hook 1) — cheap, unblocks P2.2
    cold-start later.
-2. Author the symbolic-parameter intent questions in `eval/questions/` (P2.0 gate
-   needs them).
-3. Build the P2.0 pyslang-re-elaboration prototype + `IntentProvider.get_fsm_states`
-   behind the `session.py` seam; run the intent-subset gate. Decide from the number.
+2. Author the symbolic-parameter intent questions in `eval/questions/` (the enum
+   gate `cva6-privlvl-enum` is done; symbolic-param still needed for the second
+   gate capability).
+3. Build the P2.0 pyslang-re-elaboration prototype + `IntentProvider.get_type` /
+   `get_fsm_states` behind the `session.py` seam; re-run the **gate questions**
+   (`cva6-privlvl-enum` + symbolic-param). Decide from the number: does scope reach
+   them at ≤ grep's cost?
