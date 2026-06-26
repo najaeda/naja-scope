@@ -180,5 +180,6 @@ form + readable branching) but secondary if the ctor+accessors exist.
 - Hierarchical instance addressing can keep using `getID()` + `getInstanceByID()`
   (already snapshot-stable); the `NLID` class is the internal identity key and the
   flat reverse-lookup handle for nets/terms. See `docs/phase2-plan.md` context and
-  `eval/RESULTS.md` for why this matters (cold-load decomposition: naja
-  elaboration ~46–50s; the rest was this Python pass).
+  `eval/RESULTS.md` for why this matters: the cold-load wall-clock was dominated by
+  this O(netlist) Python pass, not by naja elaboration — removing it is the win
+  (post-removal CVA6 cold elaboration is ~12s cv32a6 / ~29s cv64a6 on 0.7.8).

@@ -106,8 +106,8 @@ this). Backstop if a real range ever diverges: naja's slang submodule ships
 the `session.py` seam, `tests/test_intent.py` (11 tests; 52/52 total), the three
 `cva6-*` symbolic-param questions, and the `--intent` flag in the eval harness
 (`serve.py`/`run_eval.py`, with `get_intent` added to `SCOPE_TOOLS`). Validated:
-on cva6-small the warm server reloads SNL from snapshot (~8s) and re-elaborates
-the intent layer in slang (~0.1s, lazy) in the same process, and `get_intent`
+on cva6-small the warm server reloads SNL from snapshot (seconds) and
+re-elaborates the intent layer in slang in the same process, and `get_intent`
 answers all four gate refs correctly. Pending: the agentic gate run below.
 
 - Keep a `slang`/`pyslang` re-elaboration of the design alive in the warm server
@@ -176,8 +176,10 @@ answers all four gate refs correctly. Pending: the agentic gate run below.
 ## 5. Snapshot asymmetry (shapes the UX, non-negotiable)
 
 SNL reloads from naja-if in seconds; a `Compilation` is bump-allocated,
-pointer-rich, **never serializable** — re-elaboration only (minutes at scale). So
-two tiers are inherent and the tools must say which they're in:
+pointer-rich, **never serializable** — re-elaboration only. The two tiers are
+inherent because the Compilation cannot be serialized at all, not because
+re-elaboration is slow (cold elaboration is cheap — ~12s cv32a6 / ~29s cv64a6
+CVA6 on najaeda 0.7.8). So two tiers, and the tools must say which they're in:
 - **Cold start:** SNL from snapshot + persisted ranges. Intent tools degrade:
   *"source range provided; intent layer not loaded."*
 - **Warm session:** SNL + living AST, full capability. A `load(intent=true/false)`

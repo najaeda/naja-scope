@@ -20,8 +20,8 @@ Usage:
   python run_eval.py --design uart --arm both --out eval/results
 
 Arm A starts a warm SSE naja-scope server (serve.py), loads the design once,
-and points Claude Code's MCP client at it. CVA6 loads take 8-68 min; that cost
-is paid once and shared by every arm-A question.
+and points Claude Code's MCP client at it. The load cost (~12s cva6-small /
+~29s cva6-full on najaeda 0.7.8) is paid once and shared by every arm-A question.
 """
 from __future__ import annotations
 

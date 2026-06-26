@@ -1,10 +1,26 @@
-# Feature request prompt: persist `sv_symbol_path` (slang hierarchical path) as a typed RTL info
+# Feature request prompt: persist the relink key (slang hierarchical path → intrinsic key) as a typed RTL info
 
 *DESIGN.md phase-1 prep hook 1; NAJAEDA_NOTES.md Proposal A (typed slot) + Proposal
-B tier 1 (persistent key). The cheap, snapshot-survivable half of the SNL↔slang
-coupling — the cold-start fallback that
-`docs/naja-feature-request-slang-coupling.md` (tier 2, the live bimap) degrades to.
-Anchors into the naja3 tree, verified at HEAD 2026-06-25.*
+B tier 1 (persistent key). The snapshot-survivable join key behind the **cold
+relink** specified in `docs/naja-feature-request-slang-coupling.md` ("Cold tier —
+exact relink"). Anchors into the naja3 tree, verified at HEAD 2026-06-25.*
+
+> **Status (2026-06-26): DEFERRED with its cold tier.** This key exists only to
+> serve the cold relink in the coupling FR — which is deferred, because cold
+> elaboration on najaeda 0.7.8 is cheap (~12s cva6-small / ~29s cva6-full; the old
+> ~68 min was a since-removed Python pass). Don't build this until the cold-tier
+> gate (snapshot-reload-vs-re-elaborate measurement) is met. Spec retained as
+> design of record.
+>
+> **Design update (2026-06-26):** a bare hierarchical path is **not** sufficient —
+> it collides at uniquification (one path → N parameterized bodies) and needs
+> bit/element disambiguation. The persisted key is the **intrinsic key** from the
+> coupling FR: `hierarchical path + parameter-set signature + bit/array-element
+> index`. The serialization mechanism below (typed slot, intern the id, egress
+> through naja-if) is unchanged; only the key's *contents* widen. The cold tier
+> uses it to relink a fresh re-elaboration, **fail-closed** on a stored
+> slang-version + source fingerprint mismatch. Read the coupling FR first; this
+> doc covers the persistence plumbing.
 
 ## Problem
 
@@ -70,14 +86,20 @@ regenerate the string, so only the id need persist).
 
 ## Acceptance criteria
 
-1. Every source-annotated object carries a `sv_symbol_path` (or a clear, stable
-   absence for objects with no single source symbol).
-2. It survives a naja-if dump→reload unchanged.
+1. Every source-annotated object carries an intrinsic relink key (path +
+   parameter-set signature + bit/element index), unique per linked symbol (or a
+   clear, stable absence for objects with no single source symbol — see the
+   coupling FR's residual cases).
+2. It survives a naja-if dump→reload unchanged, alongside the slang-version pin
+   and source fingerprint the relink guard checks.
 3. The clone cost is an int copy, not string allocation (Proposal A Level-1).
 
 ## Consuming side (naja-scope)
 
-`Session.load_intent` after a **cold** snapshot load re-elaborates slang and
-re-binds by matching `getSymbolPath()` ↔ `symbol.getHierarchicalPath()`, restoring
-`get_intent` without a warm session having stamped live pointers. Until this
-lands, cold-start `get_intent` returns "intent layer not loaded" (implemented).
+The cold relink is a **naja core** operation (`naja.relink_intent()` /
+`SNLSVIntent::relink()`, coupling FR), symmetric for C++ binaries and Python: it
+re-elaborates slang and rebuilds the bimap by joining each object's stored
+intrinsic key to the recomputed key of the fresh AST, **fail-closed** on a
+slang-version or source-fingerprint mismatch. `Session.load_intent` after a cold
+snapshot load just calls it. Until this lands, cold-start `get_intent` returns
+"intent layer not loaded" (implemented).

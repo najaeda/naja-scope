@@ -34,8 +34,9 @@ eval/
   (not required for `--dry-run`).
 - CVA6 source at `/Users/xtof/WORK/cva6` (the `cva6-grenoble` checkout's
   hpdcache submodule is uninitialized — do not use it). Designs `cva6-small`
-  (cv32a6_imac_sv32, ~12–13 min first elaboration, then ~20 s from the snapshot
-  cache) and `cva6-full` (cv64a6_imafdc_sv39, ~68 min first elaboration).
+  (cv32a6_imac_sv32, ~12s first elaboration) and `cva6-full`
+  (cv64a6_imafdc_sv39, ~29s first elaboration), measured on najaeda 0.7.8; the
+  snapshot cache reloads in seconds.
 
 ## Run
 
@@ -48,12 +49,12 @@ eval/
 CLAUDE_BIN=/path/to/claude \
   ./.venv/bin/python eval/harness/run_eval.py --design uart --arm both
 
-# 3. CVA6 dev run (small config; warm server elaborates ~12-13 min the first
-#    time, then reloads in ~20s from eval/.cache/cva6-small on later runs):
+# 3. CVA6 dev run (small config; warm server elaborates in ~12s, then reloads
+#    from eval/.cache/cva6-small on later runs):
 CLAUDE_BIN=/path/to/claude \
   ./.venv/bin/python eval/harness/run_eval.py --design cva6-small --arm both
 
-# headline run: --design cva6-full  (first elaboration ~68 min, then cached)
+# headline run: --design cva6-full  (first elaboration ~29s, then cached)
 # pass --refresh-cache to force re-elaboration after the CVA6 source changes
 ```
 

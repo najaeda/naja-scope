@@ -2,14 +2,14 @@
 """Warm naja-scope server for the eval (arm A).
 
 Loads a design ONCE, then serves the registered naja-scope MCP tools so every
-eval question reuses the warm session. This is required because CVA6 takes
-8-68 min to elaborate, so re-spawning a stdio server per `claude -p` is
-untenable.
+eval question reuses the warm session — re-spawning a stdio server per
+`claude -p` would re-pay the load each time.
 
 najaeda 0.7.4 fixes SV-snapshot reload, so the first elaboration is saved to a
-naja-if snapshot cache (designs.snapshot_dir) and reloaded in seconds on every
-later warm-server start — the DESIGN.md §5 amortization. Pass --refresh-cache
-to force re-elaboration (e.g. after the source tree changes).
+naja-if snapshot cache (designs.snapshot_dir) and reloaded on every later
+warm-server start. (Post-0.7.7 the eager naming pass is gone, so cold
+elaboration is itself cheap — ~12s cva6-small / ~29s cva6-full on 0.7.8 — making
+the cache a minor convenience.) Pass --refresh-cache to force re-elaboration.
 
 Transports:
   --transport sse     long-lived daemon; point Claude Code's MCP client at the

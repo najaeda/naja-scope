@@ -18,9 +18,9 @@ divergence — the divergence risk the plan flagged bites instance-coupling
 priv_lvl_q @ csr_regfile.sv:248 -> riscv::priv_lvl_t -> {M,HS,S,U} in ~3s.
 
 Snapshot asymmetry (DESIGN.md §"Snapshot asymmetry"): a Compilation is never
-serializable, so intent is WARM-ONLY. Re-elaboration is cheap (~3s on cv32 cva6,
-vs naja's ~50s) but must run from the original flist/files — it cannot ride the
-naja-if snapshot. Cold start (snapshot-loaded SNL, no flist) degrades to
+serializable, so intent is WARM-ONLY. Re-elaboration is cheap (a few seconds in
+slang) but must run from the original flist/files — it cannot ride the naja-if
+snapshot. Cold start (snapshot-loaded SNL, no flist) degrades to
 "intent layer not loaded".
 
 Binding is name-keyed: naja-scope paths use the same SV instance/object names

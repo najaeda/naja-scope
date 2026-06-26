@@ -21,9 +21,10 @@ _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 _FIXTURES = os.path.join(_REPO, "tests", "fixtures")
 _QDIR = os.path.join(_REPO, "eval", "questions")
 # naja-if snapshot cache (gitignored). Since najaeda 0.7.4 fixes SV-snapshot
-# reload, a design is elaborated once and reloaded in seconds thereafter — the
-# DESIGN.md §5 amortization that lets E2 authoring and E3 re-runs skip the
-# 8-68 min CVA6 elaboration.
+# reload, a design is elaborated once and reloaded thereafter (DESIGN.md §5).
+# Note: post-0.7.7 (eager naming pass removed) cold elaboration is cheap —
+# ~12s cva6-small / ~29s cva6-full on 0.7.8 — so the cache is now a minor
+# convenience, not the amortization of a multi-minute load it once was.
 _CACHE = os.path.join(_REPO, "eval", ".cache")
 
 CVA6_REPO = "/Users/xtof/WORK/cva6"
@@ -56,7 +57,7 @@ DESIGNS = {
         "env": _cva6_env("cv32a6_imac_sv32"),
         "source_root": CVA6_REPO,
         "questions": os.path.join(_QDIR, "cva6.yaml"),
-        "expect_load_seconds": 750,  # measured ~749s first elaboration; ~20s from snapshot
+        "expect_load_seconds": 15,  # measured ~12s first elaboration (najaeda 0.7.8)
     },
     "cva6-full": {
         "label": "CVA6 cv64a6_imafdc_sv39 (headline)",
@@ -65,7 +66,7 @@ DESIGNS = {
         "env": _cva6_env("cv64a6_imafdc_sv39"),
         "source_root": CVA6_REPO,
         "questions": os.path.join(_QDIR, "cva6.yaml"),
-        "expect_load_seconds": 4100,
+        "expect_load_seconds": 30,  # measured ~29s first elaboration (najaeda 0.7.8)
     },
 }
 

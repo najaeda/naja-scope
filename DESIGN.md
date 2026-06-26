@@ -157,7 +157,7 @@ Direction chosen 2026-06: rather than the static AST-JSON sidecar, keep the `sla
 
 **What it buys over the JSON dump** (a corpse you can search but not interrogate): on-demand queries for enum/struct/interface types before bit-blasting (FSM state names), symbolic parameter expressions, process structure (which always_ff, sensitivity, sync/async reset), assertions/SVA, packages/imports, generate provenance — and slang's analysis layer can answer "what drives X" at the procedural/word level, the intent-side complement to SNL's structural answer. A live compilation can also contain non-synthesizable code, softening the RTL-only scope caveat (SNL still won't represent testbenches, but scope/definition/assertion questions become answerable).
 
-**Snapshot asymmetry (shapes everything):** SNL reloads from naja-if in seconds; a Compilation is bump-allocated and pointer-rich — never serializable, only obtainable by re-elaboration (minutes at scale). Two tiers are therefore inherent:
+**Snapshot asymmetry (shapes everything):** SNL reloads from naja-if in seconds; a Compilation is bump-allocated and pointer-rich — never serializable, only obtainable by re-elaboration. The two tiers below are inherent because the Compilation cannot be serialized at all — *not* because re-elaboration is expensive: cold elaboration is cheap (~12s cv32a6 / ~29s cv64a6 CVA6 on najaeda 0.7.8, once the old eager naming pass was removed), so the warm/cold gap is small in wall-clock terms:
 - Cold start: SNL from snapshot + persisted ranges; intent tools degrade gracefully ("source range provided, intent layer not loaded").
 - Warm session: SNL + living AST, full capability. `load(intent=true/false)` knob; memory budget roughly doubles (each layer is GB-class on large designs).
 
