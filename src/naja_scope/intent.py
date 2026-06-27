@@ -24,10 +24,32 @@ have no SNL object and go through the name-keyed `naja.intent_package_member`.
 """
 from __future__ import annotations
 
+import re
+
 from najaeda import naja
 
 from .errors import ScopeError
 from .resolve import resolve_path
+
+# A sized Verilog literal, e.g. "32'd1", "8'hff", "4'b0101" (optionally signed).
+# Parameter values sometimes come back this way; agents (and the eval goldens)
+# want the plain decimal. x/z literals and expressions never match -> left as-is.
+_SIZED_LITERAL_RE = re.compile(r"^\d+'[sS]?([dDbBhHoO])([0-9a-fA-F_]+)$")
+_LITERAL_BASE = {"d": 10, "b": 2, "h": 16, "o": 8}
+
+
+def _decimal_value(value):
+    """Reduce a sized Verilog literal to its plain decimal string; pass anything
+    else (already-decimal, a formula, an x/z literal) through unchanged."""
+    if not isinstance(value, str):
+        return value
+    m = _SIZED_LITERAL_RE.match(value.strip())
+    if not m:
+        return value
+    try:
+        return str(int(m.group(2).replace("_", ""), _LITERAL_BASE[m.group(1).lower()]))
+    except ValueError:
+        return value
 
 
 class IntentUnavailable(ScopeError):
@@ -82,6 +104,9 @@ class IntentProvider:
             raise ScopeError(
                 f"{ref!r}: no parameters recovered (not an instance/module with "
                 "a source symbol, or the intent layer is not loaded).")
+        for p in rec.get("parameters", []):
+            if "value" in p:
+                p["value"] = _decimal_value(p["value"])
         rec["ref"] = ref
         return rec
 
@@ -126,5 +151,7 @@ class IntentProvider:
             raise ScopeError(
                 f"intent: {member!r} not found in package {pkg!r} (or the intent "
                 f"layer is not loaded) — {ref!r}")
+        if "value" in rec:
+            rec["value"] = _decimal_value(rec["value"])
         rec["ref"] = ref
         return rec

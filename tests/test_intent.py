@@ -123,6 +123,21 @@ def test_get_parameters_includes_localparams(ip):
     assert by_name["DEPTH"]["localparam"] is False
 
 
+# -- param value normalization (sized literal -> plain decimal) --------------
+
+def test_decimal_value_normalization():
+    from naja_scope.intent import _decimal_value
+    assert _decimal_value("32'd1") == "1"      # the CVA6 REQ_ID_BITS nit
+    assert _decimal_value("8'hff") == "255"
+    assert _decimal_value("4'b0101") == "5"
+    assert _decimal_value("16'so10") == "8"    # signed octal magnitude
+    # already-decimal, formulas, and x/z literals pass through untouched
+    assert _decimal_value("34") == "34"
+    assert _decimal_value("(XLEN == 32) ? 34 : 56") == "(XLEN == 32) ? 34 : 56"
+    assert _decimal_value("32'dx") == "32'dx"
+    assert _decimal_value(7) == 7
+
+
 # -- error / robustness paths ------------------------------------------------
 
 def test_unknown_name_rejected(ip):
