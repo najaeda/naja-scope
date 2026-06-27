@@ -54,11 +54,13 @@ def _auto_intent() -> bool:
 
 
 def _attach_intent(out: dict, explicit: bool) -> dict:
-    """Load the intent layer into the session and annotate `out`.
+    """Bring the warm intent layer up for a COLD load (snapshot) by
+    re-elaborating from the persisted load_spec, and annotate `out`.
 
     `explicit` (intent=True passed by the caller) surfaces failures; the env
-    opt-in is best-effort — a missing pyslang or flist must not fail the load,
-    only leave get_intent in its graceful "not loaded" state.
+    opt-in is best-effort — a missing flist must not fail the load, only leave
+    get_intent in its graceful "not loaded" state. (Warm SystemVerilog loads
+    enable intent inline via keep_ast_link and do not use this path.)
     """
     if not (explicit or _auto_intent()):
         return out
@@ -95,21 +97,32 @@ def load_systemverilog(files: Optional[List[str]] = None,
                        top: Optional[str] = None,
                        keep_assigns: bool = True,
                        intent: bool = False) -> dict:
+    # Warm load: retain the slang AST link inline (keep_ast_link) when intent is
+    # requested — no separate elaboration step. Off by default (the Compilation
+    # is GB-class on large designs).
+    want = bool(intent or _auto_intent())
     top_instance = SESSION.load_systemverilog(files or [], flist=flist,
                                               top=top,
-                                              keep_assigns=keep_assigns)
-    return _attach_intent({"top": _summary(top_instance)}, explicit=intent)
+                                              keep_assigns=keep_assigns,
+                                              keep_ast_link=want)
+    out = {"top": _summary(top_instance)}
+    if want:
+        out["intent_loaded"] = SESSION.intent_available
+        if intent and not SESSION.intent_available:
+            out["intent_note"] = ("intent requested but the live AST link is "
+                                   "unavailable in this naja build.")
+    return out
 
 
 def load_intent(flist: Optional[str] = None, files: Optional[List[str]] = None,
                 top: Optional[str] = None, env: Optional[dict] = None) -> dict:
-    """Build the warm-only intent layer (separate pyslang re-elaboration).
-    Reuses inputs captured at SNL load when omitted; after a cold snapshot load
-    the flist/top must be supplied."""
+    """Make the warm intent layer available (naja's in-engine SNL↔slang link).
+    A no-op if a load already retained it; otherwise re-elaborates WITH the link
+    from the inputs captured at SNL load (or the flist/top passed here). A cold
+    snapshot does not carry them, so they must be supplied there."""
     SESSION.require_top()
     SESSION.load_intent(flist=flist, files=files, top=top, env=env)
-    return {"intent_loaded": SESSION.intent_available,
-            "flist": SESSION.intent.flist, "top": SESSION.intent.top}
+    return {"intent_loaded": SESSION.intent_available}
 
 
 def load_verilog(files: List[str], keep_assigns: bool = True,
@@ -449,8 +462,9 @@ def get_intent(ref: str, want: str = "auto") -> dict:
     if not SESSION.intent_available:
         return {"intent_loaded": False,
                 "note": ("intent layer not loaded; source range is available "
-                         "via get_source. Load it with load_intent (warm "
-                         "sessions only).")}
+                         "via get_source. Load a warm SystemVerilog session "
+                         "with the AST link (load_systemverilog intent=True, "
+                         "NAJA_SCOPE_INTENT=1, or load_intent).")}
     ip = SESSION.intent
     try:
         if want == "auto":

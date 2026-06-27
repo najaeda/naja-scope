@@ -12,6 +12,8 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
+from najaeda import naja
+
 from . import loader, snl
 from .errors import NoDesignError, ScopeError
 
@@ -21,19 +23,22 @@ _SIDECAR_META = "naja_scope_session.json"
 class Session:
     """Structural provider: live SNL + source index + load metadata.
 
-    Phase 2 (DESIGN.md prep hook 2) adds an optional `IntentProvider` next to
-    this StructuralProvider: `self.intent`, built by `load_intent`. It is
-    warm-only (a slang Compilation is never serializable — see intent.py), so it
-    is absent after a cold snapshot load until `load_intent` re-elaborates.
+    Phase 2 (DESIGN.md prep hook 2) adds the `IntentProvider` next to this
+    StructuralProvider: `self.intent`, a thin client over naja's in-engine
+    SNL↔slang link. The link is warm-only (a slang Compilation is never
+    serializable — see intent.py), so `intent_available` is True only after a
+    SystemVerilog load with `keep_ast_link`; a cold snapshot load has none until
+    a warm (re)load via `load_intent`.
     """
 
     def __init__(self):
         self.source_dirs: List[str] = []
         self.loaded_files: List[str] = []
         # Inputs captured at elaboration so load_intent can re-elaborate the
-        # SAME design in slang (a snapshot does not carry the flist).
+        # SAME design with the AST link (a snapshot does not carry the flist).
         self.load_spec: dict = {}
-        self.intent = None  # Optional[intent.IntentProvider]
+        from . import intent as intent_mod
+        self.intent = intent_mod.IntentProvider(self)
 
     # -- lifecycle -----------------------------------------------------------
 
@@ -61,9 +66,11 @@ class Session:
 
     def load_systemverilog(self, files: List[str], flist: Optional[str] = None,
                            top: Optional[str] = None,
-                           keep_assigns: bool = True) -> "snl.InstNode":
+                           keep_assigns: bool = True,
+                           keep_ast_link: bool = False) -> "snl.InstNode":
         loader.load_systemverilog(files, flist=flist, top=top,
-                                  keep_assigns=keep_assigns)
+                                  keep_assigns=keep_assigns,
+                                  keep_ast_link=keep_ast_link)
         self._record_sources(files)
         if flist:
             self._record_sources([flist])
@@ -86,29 +93,40 @@ class Session:
                     files: Optional[List[str]] = None,
                     top: Optional[str] = None,
                     env: Optional[dict] = None) -> "intent.IntentProvider":
-        """Build + elaborate the warm-only intent layer (a separate pyslang
-        re-elaboration). Falls back to the inputs captured at SNL load, so after
-        `load_systemverilog` no arguments are needed; after a cold snapshot
-        load the flist/top must be supplied (the snapshot does not carry them).
+        """Make the warm intent layer available. If a SystemVerilog load already
+        retained the AST link, this is a no-op. Otherwise (loaded without intent,
+        or a cold snapshot) it re-elaborates the SAME design WITH the link, from
+        the inputs captured at load (a snapshot does not carry them, so a cold
+        session must have the flist/files in load_spec or pass them here).
+
+        Re-elaboration on the 0.7.8 build is cheap (~12s cva6-small / ~29s
+        cva6-full). The exact relink-without-re-elaboration tier is deferred
+        (docs/naja-feature-request-slang-coupling.md "Cold tier").
         """
-        from . import intent as intent_mod
+        if naja.intent_available():
+            return self.intent
         spec = self.load_spec or {}
-        provider = intent_mod.IntentProvider(
-            files=files if files is not None else spec.get("files"),
-            flist=flist if flist is not None else spec.get("flist"),
-            top=top if top is not None else spec.get("top"),
-            env=env)
-        if not provider.flist and not provider.files:
+        files = files if files is not None else spec.get("files")
+        flist = flist if flist is not None else spec.get("flist")
+        top = top if top is not None else spec.get("top")
+        if not files and not flist:
             raise ScopeError(
-                "load_intent needs a flist or files to re-elaborate; a cold "
-                "snapshot load does not carry them — pass flist=/top=.")
-        provider.ensure()
-        self.intent = provider
-        return provider
+                "load_intent needs a flist or files to elaborate the intent "
+                "layer (warm load); a cold snapshot does not carry them — pass "
+                "flist=/files=. Cold relink-without-re-elaboration is deferred.")
+        if env:
+            for k, v in env.items():
+                os.environ[k] = v
+        # A fresh elaboration WITH the AST link, replacing the current universe.
+        loader.reset_universe()
+        self.__init__()
+        self.load_systemverilog(files or [], flist=flist, top=top,
+                                keep_ast_link=True)
+        return self.intent
 
     @property
     def intent_available(self) -> bool:
-        return self.intent is not None and self.intent.loaded
+        return bool(naja.intent_available())
 
     # -- source resolution ---------------------------------------------------
 

@@ -52,8 +52,8 @@ def load_systemverilog(files: Optional[List[str]] = None,
                        keep_assigns: bool = True,
                        intent: bool = False) -> dict:
     """Elaborate SystemVerilog (files and/or an flist; optional top module).
-    Names anonymous objects so everything is path-addressable.
-    intent=True also loads the warm intent layer (slang AST) for get_intent."""
+    Anonymous lowered objects are addressable by #<id>.
+    intent=True retains naja's in-engine SNL↔slang link for get_intent."""
     return api.load_systemverilog(files, flist, top, keep_assigns, intent)
 
 
@@ -196,9 +196,9 @@ def get_intent(ref: str, want: str = "auto") -> dict:
 def load_intent(flist: Optional[str] = None,
                 files: Optional[List[str]] = None,
                 top: Optional[str] = None) -> dict:
-    """Build the warm intent layer (slang re-elaboration) for get_intent.
-    Reuses the flist/files from load_systemverilog when omitted; after a cold
-    snapshot load, pass the original flist/top."""
+    """Make the warm intent layer available for get_intent (naja's in-engine
+    SNL↔slang link). No-op if a load already retained it; otherwise re-elaborates
+    WITH the link from the captured flist/files (pass them after a cold snapshot)."""
     return api.load_intent(flist, files, top)
 
 

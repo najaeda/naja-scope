@@ -39,7 +39,8 @@ def reset_universe():
 
 
 def load_systemverilog(files: List[str], flist: Optional[str] = None,
-                       top: Optional[str] = None, keep_assigns: bool = True):
+                       top: Optional[str] = None, keep_assigns: bool = True,
+                       keep_ast_link: bool = False):
     db = get_top_db()
     effective_flist = flist
     temp_flist = None
@@ -63,6 +64,11 @@ def load_systemverilog(files: List[str], flist: Optional[str] = None,
             include_source_info_in_elaborated_ast_json=True,
             flist=effective_flist,
             suppress_warnings=None,
+            # Retain the live slang Compilation + SNL<->slang bimap for the
+            # phase-2 intent layer (naja.intent_*). Off by default (the
+            # Compilation is GB-class on large designs); enabled only when the
+            # intent layer is requested. See docs/naja-feature-request-slang-coupling.md.
+            keep_ast_link=keep_ast_link,
         )
     finally:
         if temp_flist and os.path.exists(temp_flist):
