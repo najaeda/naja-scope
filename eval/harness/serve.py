@@ -45,21 +45,26 @@ import designs as design_registry  # noqa: E402
 from naja_scope import api, server  # noqa: E402
 
 
-def load_design(design_key: str, refresh_cache: bool = False) -> dict:
+def load_design(design_key: str, refresh_cache: bool = False,
+                intent: bool = False) -> dict:
     spec = design_registry.get(design_key)
     for k, v in spec["env"].items():
         os.environ.setdefault(k, v)
     cache = design_registry.snapshot_dir(design_key)
     cached = os.path.isfile(os.path.join(cache, "snl.mf"))
     t0 = time.time()
-    if cached and not refresh_cache:
+    # The intent layer needs the live slang AST (keep_ast_link), which a naja-if
+    # snapshot cannot carry — so with intent we always elaborate from source in a
+    # single pass (cheap post-0.7.7: ~12s cva6-small / ~29s cva6-full) and skip
+    # the snapshot round-trip. Without intent, the cache short-circuits the load.
+    if cached and not refresh_cache and not intent:
         res = api.load_snapshot(cache)
         res["source"] = "snapshot"
     else:
         load = spec["load"]
         api.load_systemverilog(
             files=load.get("files"), flist=load.get("flist"),
-            top=spec.get("top"))
+            top=spec.get("top"), intent=intent)
         os.makedirs(cache, exist_ok=True)
         api.save_snapshot(cache)
         res = api.status()
@@ -67,6 +72,7 @@ def load_design(design_key: str, refresh_cache: bool = False) -> dict:
     res["load_seconds"] = round(time.time() - t0, 2)
     res["design"] = design_key
     res["label"] = spec["label"]
+    res["intent_loaded"] = api.SESSION.intent_available
     return res
 
 
@@ -80,20 +86,14 @@ def main() -> None:
     ap.add_argument("--refresh-cache", action="store_true",
                     help="ignore any cached snapshot and re-elaborate from source")
     ap.add_argument("--intent", action="store_true",
-                    help="also load the warm intent layer (slang re-elaboration) "
-                         "so get_intent is available (phase-2 gate, arm A)")
+                    help="retain the in-engine SNL↔slang link (keep_ast_link) so "
+                         "get_intent is available (phase-2 gate, arm A)")
     args = ap.parse_args()
 
-    summary = load_design(args.design, refresh_cache=args.refresh_cache)
+    summary = load_design(args.design, refresh_cache=args.refresh_cache,
+                          intent=args.intent)
     if args.intent:
-        spec = design_registry.get(args.design)
-        load = spec["load"]
-        t0 = time.time()
-        api.load_intent(flist=load.get("flist"), files=load.get("files"),
-                        top=spec.get("top"), env=spec.get("env"))
-        summary["intent_loaded"] = api.SESSION.intent_available
-        summary["intent_seconds"] = round(time.time() - t0, 2)
-        print(f"[serve] intent layer loaded in {summary['intent_seconds']}s",
+        print(f"[serve] intent layer loaded: {summary.get('intent_loaded')}",
               file=sys.stderr)
     if args.transport == "sse":
         server.mcp.settings.host = args.host
