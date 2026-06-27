@@ -28,6 +28,20 @@ What it returns to Python today is a **raw `PyCapsule`** (`naja.slang.Symbol` /
 That half-step is the subject of the decisions below: a raw pointer is unusable
 from Python without a slang binding, and we are **not** adding one.
 
+**Update (2026-06-26): the warm curated API has LANDED** (naja 0.7.8, local
+build). `naja.intent_available()`, `intent_type_of(obj)`, `intent_parameters_of(obj)`,
+`intent_package_member(pkg, name)` return plain dicts; verified against the
+route-1 goldens (enum members, symbolic params, package members) and the `#<id>`
+case. `intent_type_of` returns a record for **any** value (not just enums):
+scalars → `{type, canonical_kind:"scalar", src}`; enums → `+ enum{width,decl,members}`;
+packed structs/unions → `+ struct{width,decl,fields:[{name,type,msb,lsb}]}`; `None`
+only for no-symbol / no-link. naja-scope consumes these via a pyslang-free thin
+client (intent.py); 57/57 tests pass. **Validated on real CVA6 (cva6-small, 6/6):**
+the privilege enum (members attributed to the package), all three symbolic params
+(formula + cv32 value), the 132-bit `exception_t` packed struct, and a `#<id>`
+anonymous FF mapping back to its source enum type — cold elab ~12s. The cold tier
+below remains DEFERRED.
+
 ## Two locked constraints (these drive everything)
 
 1. **No pyslang inside naja.** Compiling the slang submodule's pybind bindings

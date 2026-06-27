@@ -45,7 +45,7 @@ def test_fsm_states_package_typedef_enum(ip):
     assert members == {"ST_IDLE": "2'b00", "ST_RUN": "2'b01", "ST_DONE": "2'b11"}
     # member decl is in the package, not at the register — the gate's whole point
     assert rec["enum"]["decl"].endswith(".sv:5")
-    assert rec["src"].endswith(".sv:22")
+    assert rec["src"].endswith(".sv:26")
 
 
 def test_get_type_resolves_alias(ip):
@@ -59,6 +59,28 @@ def test_get_fsm_states_non_enum_notes(ip):
     rec = ip.get_fsm_states("intent_mini.clk")
     assert "enum" not in rec
     assert "note" in rec
+
+
+# -- non-enum types now answer too (naja extended typeOf beyond enums) --------
+
+def test_non_enum_scalar_type(ip):
+    # A plain logic value returns its declared type (was None pre-extension).
+    rec = ip.get_type("intent_mini.clk")
+    assert rec["type"] == "logic"
+    assert rec["canonical_kind"] == "scalar"
+    assert "enum" not in rec and "struct" not in rec
+
+
+def test_packed_struct_fields(ip):
+    # A packed-struct register exposes its field names + bit ranges (the struct
+    # analog of enum members — lost in lowering, recovered via the AST link).
+    rec = ip.get_type("intent_mini.req_q")
+    assert rec["canonical_kind"] == "packed_struct"
+    fields = {f["name"]: f for f in rec["struct"]["fields"]}
+    assert set(fields) == {"valid", "id"}
+    assert fields["id"]["msb"] == 3 and fields["id"]["lsb"] == 0
+    assert rec["struct"]["width"] == 5
+    assert rec["struct"]["decl"].endswith(".sv:10")  # the typedef, in the package
 
 
 # -- anonymous lowered primitive (#<id>) — the route-1 prototype REFUSED this --
