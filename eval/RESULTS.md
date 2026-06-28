@@ -11,6 +11,29 @@ Both arms pay the same Claude Code overhead, so the per-arm delta is the signal.
 Runs on 2026-06-20 with `claude` 2.1.185, model claude-opus-4-8, max-turns 12.
 Raw per-question JSON is under `eval/results/<design>_<timestamp>/` (gitignored).
 
+## Update — phase-2 intent gate re-confirmed, pyslang-free / naja 0.7.8 (2026-06-28)
+
+Re-ran the full `cva6-small` bank (17 Q) with `--intent` against the
+**productized, pyslang-free** intent layer (C++-core SNL↔slang `keep_ast_link`,
+no Python pyslang) on the local naja **0.7.8** build. Warm load 29 s (from
+source — intent skips the snapshot). Headline:
+
+| arm | correct | turns | input tok | output tok |
+|---|---|---|---|---|
+| A (scope+intent) | **17/17** | **77** | 182k | 19,172 |
+| B (grep) | 10/17 | 123 | 888k | 38,594 |
+
+All four intent-class gate questions correct on scope with the cv32 `by_config`
+goldens: `cva6-privlvl-enum` (priv_lvl_t, 2-bit/4-member), `cva6-plen-param`
+(**34**), `cva6-csr-counter-width` (**5**), `cva6-loadbuf-id-bits` (**1**) — grep
+fails the last. Scope reproduces the route-1 prototype's **exact 18-turn / 4-of-4**
+intent-subset figure → no regression in the intent layer. Caveat: on the strict
+four-question turn-sum grep came in at 16 this run (vs 23 on 2026-06-25), *fewer*
+than scope's 18, but only by answering `cva6-loadbuf-id-bits` wrong in 3 turns
+and being 1 turn terser on two trivially-greppable params; correctness-weighted,
+scope still leads. Results `eval/results/cva6-small_20260628-015710`. See
+`docs/phase2-plan.md §4` GATE RE-CONFIRMATION.
+
 ## Update — 0.7.7 re-validation after the id-addressing refactor (2026-06-25)
 
 naja-scope's object addressing was reworked (see `docs/identity-and-addressing.md`):

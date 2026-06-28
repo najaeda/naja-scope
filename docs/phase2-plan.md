@@ -149,6 +149,22 @@ answers all four gate refs correctly. Pending: the agentic gate run below.
   NAME `get_intent` among the scope tools (it enumerates them and says "ONLY");
   the first run, without it, had the agent hunt via `ToolSearch` and hit
   max-turns — a prompt bug, not a product bug.
+- **GATE RE-CONFIRMATION (2026-06-28) — PASS on the productized, pyslang-free
+  layer / local naja 0.7.8.** Re-ran the full `cva6-small` bank with `--intent`
+  against the C++-core SNL↔slang link (`keep_ast_link`, no Python pyslang); warm
+  load 29 s (from-source, intent skips the snapshot). The intent layer returns
+  the same data shapes as the route-1 prototype: **scope+intent reproduces the
+  baseline's exact 18-turn / 4-of-4 figure on the four gate questions** (PLEN=34,
+  SELECT_COUNTER_WIDTH=5, REQ_ID_BITS=1, priv_lvl_t 2-bit/4-member — the cv32
+  `by_config` goldens), so **no regression in scope's own behavior**. Whole-bank
+  aggregate **scope 17/17, 77 turns vs grep 10/17, 123 turns** (~0.2× input /
+  0.5× output tokens); results `eval/results/cva6-small_20260628-015710`. One
+  honest caveat: on the strict four-question turn-sum, grep came in at **16**
+  this run (vs 23 on 2026-06-25) — *fewer* than scope's 18 — but only because
+  grep answered `cva6-loadbuf-id-bits` **wrong in 3 turns** (a fast-but-incorrect
+  answer) and was 1 turn terser on privlvl and plen; on a correctness-weighted
+  reading scope still leads (4/4 vs 3/4 intent), and the gate's substantive
+  criterion — all four correct at ≤ grep's aggregate turns — holds decisively.
 - Risks at this tier (DESIGN.md §"Exposure options" 1): double elaboration +
   memory; **divergence** if the prototype's slang version/flags differ from
   naja's fork → mismatched hierarchies. Mitigate by pinning the same slang commit;

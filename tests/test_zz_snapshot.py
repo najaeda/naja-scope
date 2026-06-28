@@ -7,6 +7,9 @@ import os
 
 from naja_scope import api
 
+FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+UART_SV = os.path.join(FIXTURES, "uart.sv")
+
 
 def test_save_snapshot_writes_netlist_and_meta(uart_session, tmp_path):
     snap = str(tmp_path / "snap")
@@ -66,6 +69,72 @@ def test_snapshot_reload_with_intent(uart_session, tmp_path):
     params = api.get_intent("uart_top.u_tx", want="parameters")
     names = {p["name"] for p in params["parameters"]}
     assert "DIV_W" in names
+
+
+def test_status_reports_intent_loadable_contract(uart_session):
+    """status() is how an agent decides whether get_intent can be brought up:
+    `intent_loadable` is True iff the elaboration inputs are known (warm reload
+    possible), independent of whether the link is live right now. Build-agnostic
+    — it reads metadata, not the AST link, so it runs on PyPI builds too."""
+    from naja_scope.session import SESSION
+    # `intent_loaded` reflects the live link (in-process, order-dependent here);
+    # the order-independent contract under test is `intent_loadable`: uart was
+    # loaded from a real file, so the inputs are captured and a warm reload is
+    # possible.
+    st = api.status()
+    assert isinstance(st["intent_loaded"], bool)
+    assert st["intent_loadable"] is True
+    # A cold snapshot that carries no load_spec (old/foreign snapshot) reports
+    # not-loadable, so the agent knows load_intent needs an explicit flist/files.
+    saved = SESSION.load_spec
+    SESSION.load_spec = {}
+    try:
+        assert api.status()["intent_loadable"] is False
+    finally:
+        SESSION.load_spec = saved
+
+
+def test_load_snapshot_intent_without_load_spec(uart_session, tmp_path,
+                                                monkeypatch):
+    """A cold snapshot that does not carry the elaboration inputs (an old or
+    externally produced snapshot) cannot bring intent up by re-elaboration:
+    explicit intent=True must RAISE (the agent asked and we can't comply), while
+    the env opt-in must DEGRADE — never failing the load. Build-agnostic: a cold
+    snapshot never has a live link regardless of the naja build."""
+    import json
+    import pytest
+    from naja_scope.errors import ScopeError
+    from naja_scope.session import SESSION
+
+    snap = str(tmp_path / "snap_nospec")
+    os.makedirs(snap, exist_ok=True)
+    api.save_snapshot(snap)
+    # Strip load_spec from the sidecar to simulate a snapshot without inputs.
+    meta_path = os.path.join(snap, "naja_scope_session.json")
+    with open(meta_path) as f:
+        meta = json.load(f)
+    meta["load_spec"] = {}
+    with open(meta_path, "w") as f:
+        json.dump(meta, f)
+
+    # explicit intent=True -> ScopeError (no flist/files to re-elaborate).
+    api.reset_universe()
+    monkeypatch.delenv("NAJA_SCOPE_INTENT", raising=False)
+    with pytest.raises(ScopeError):
+        api.load_snapshot(snap, intent=True)
+
+    # env opt-in -> graceful degradation, load still succeeds.
+    api.reset_universe()
+    monkeypatch.setenv("NAJA_SCOPE_INTENT", "1")
+    out = api.load_snapshot(snap)
+    assert out["top"]["model"] == "uart_top"
+    assert out["intent_loaded"] is False
+    assert "intent_note" in out
+
+    # Restore the canonical uart universe for any later test files.
+    monkeypatch.delenv("NAJA_SCOPE_INTENT", raising=False)
+    SESSION.reset()
+    SESSION.load_systemverilog([UART_SV])
 
 
 def test_server_tools_registered():
