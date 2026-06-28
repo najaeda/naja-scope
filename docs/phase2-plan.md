@@ -197,7 +197,12 @@ inherent because the Compilation cannot be serialized at all, not because
 re-elaboration is slow (cold elaboration is cheap — ~12s cv32a6 / ~29s cv64a6
 CVA6 on najaeda 0.7.8). So two tiers, and the tools must say which they're in:
 - **Cold start:** SNL from snapshot + persisted ranges. Intent tools degrade:
-  *"source range provided; intent layer not loaded."*
+  *"source range provided; intent layer not loaded."* **Implemented + tested**
+  (`tests/test_zz_snapshot.py`, exercised on the naja 0.7.8 build): the cold tier
+  re-binds by re-elaborating the same design WITH `keep_ast_link` from the
+  snapshot-persisted `load_spec`; `status().intent_loadable` tells the agent
+  whether the inputs are known. The relink-*without*-re-elaboration variant
+  (persisted `sv_symbol_path`, hook 1 below) is still deferred.
 - **Warm session:** SNL + living AST, full capability. A `load(intent=true/false)`
   knob; memory roughly doubles (each layer GB-class on CVA6-scale).
 

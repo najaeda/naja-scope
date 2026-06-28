@@ -107,13 +107,19 @@ the upstream bugs once tracked — parameter-specialization merging and naja-if
 SV-snapshot reload — are both fixed (see NAJAEDA_NOTES.md); the snapshot
 round-trip (`tests/test_zz_snapshot.py`) is a normal passing test.
 
-naja-scope targets **najaeda 0.7.7** — the Python `NLID` value class +
-`NLUniverse.getObject(NLID)` that back its object-identity model
-(`docs/identity-and-addressing.md`), plus the 0.7.6 gate combinatorial modeling
-`trace_cone` needs. **0.7.7 is not on PyPI yet** — until it is, develop against
-the local naja build at `/Users/xtof/WORK/naja3`, compiled for Homebrew Python
-3.14 (it segfaults under a 3.11 interpreter), via the `.venv314` dev venv
-(`mcp` + `pytest` installed) plus `PYTHONPATH`:
+naja-scope targets **najaeda 0.7.8** (on PyPI since 2026-06-28) — the in-engine
+SNL↔slang link (`keep_ast_link`) + curated `intent_*` API behind `get_intent`,
+the Python `NLID` value class + `NLUniverse.getObject(NLID)` that back its
+object-identity model (`docs/identity-and-addressing.md`), and the 0.7.6 gate
+combinatorial modeling `trace_cone` needs. A plain install runs the full suite:
+
+```sh
+./.venv/bin/python -m pytest -q
+```
+
+For naja-side development you can instead run against a local naja build at
+`/Users/xtof/WORK/naja3`, compiled for Homebrew Python 3.14 (it segfaults under a
+3.11 interpreter), via the `.venv314` dev venv plus `PYTHONPATH`:
 
 ```sh
 PYTHONPATH=/Users/xtof/WORK/naja3/build/test/najaeda ./.venv314/bin/python -m pytest -q
