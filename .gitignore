@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 *.egg-info/
+dist/
+build/
 .pytest_cache/
 .DS_Store
 naja_perf.log
