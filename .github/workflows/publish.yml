@@ -51,9 +51,9 @@ jobs:
 
       - uses: pypa/gh-action-pypi-publish@v1.14.0
         with:
-          # Drop `password:` and configure a PyPI "trusted publisher" (OIDC) to
-          # publish without a long-lived token — recommended. Token works too.
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          # Trusted publishing (OIDC) — no long-lived token. Requires a
+          # TestPyPI trusted publisher configured for this repo/workflow with
+          # environment name `pypi` (https://test.pypi.org/manage/account/publishing/).
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
