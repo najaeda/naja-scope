@@ -9,12 +9,13 @@ See [DESIGN.md](DESIGN.md) for architecture and scope;
 [NAJAEDA_NOTES.md](NAJAEDA_NOTES.md) for upstream feature requests and bugs
 found while building phase 1.
 
-## Status: phase 1 (structural spine + source ranges) + phase-2 intent prototype
+## Status: phase 1 (structural spine + source ranges) + phase-2 intent layer
 
-Phase 1 is the core; the phase-2 living-intent layer (`get_intent`, warm-only,
-opt-in) shipped as a prototype after passing its eval gate (scope+intent ≤ grep
-turns on cva6-small; see `docs/phase2-plan.md` §4). The DESIGN.md §3 workflow
-works end to end:
+Phase 1 is the core; the phase-2 living-intent layer (`get_intent`, warm-only) is
+productized — a thin, pyslang-free client over naja's in-engine SNL↔slang link
+(`keep_ast_link`, shipped in najaeda 0.7.8). Its eval gate passed and was
+re-confirmed on the productized layer (scope+intent ≤ grep turns on cva6-small;
+see `docs/phase2-plan.md` §4). The DESIGN.md §3 workflow works end to end:
 
 ```
 resolve("uart_top.u_tx.tx_o")   → term descriptor with src range
@@ -29,15 +30,21 @@ Three calls, well under a thousand tokens, answer plus quotable source.
 ## Install / run
 
 ```sh
-python3.11 -m venv --system-site-packages .venv   # najaeda from site-packages
-.venv/bin/pip install -e .
-.venv/bin/naja-scope-mcp                          # stdio MCP server
+pip install naja-scope        # pulls najaeda>=0.7.8 and mcp from PyPI
+naja-scope-mcp                # stdio MCP server
 ```
 
 Register with Claude Code:
 
 ```sh
-claude mcp add naja-scope -- /path/to/naja-scope/.venv/bin/naja-scope-mcp
+claude mcp add naja-scope -- naja-scope-mcp
+```
+
+For development from a checkout, install editable instead:
+
+```sh
+python3.11 -m venv .venv
+.venv/bin/pip install -e .
 ```
 
 ## Tools
@@ -59,19 +66,19 @@ Source & summaries: `get_source` (the SV lines that produced an object),
 `get_module_card` (deterministic ports/counts/clock-reset card),
 `get_stats` (per-model rollups).
 
-Intent (phase-2 prototype): `get_intent` — source-level facts the netlist
-*erases in lowering*: enum/typedef state names + encodings (incl. **package**
-typedefs whose members live in another file) and **symbolic parameter
-expressions** (the formula behind a baked-in width). Backed by a separate
-`pyslang` re-elaboration kept alive beside the SNL session, so it is **warm-only**
-(a slang `Compilation` never serializes): enable it with `load_intent`,
-`load_systemverilog(intent=true)` / `load_snapshot(intent=true)`, or the
-`NAJA_SCOPE_INTENT=1` env opt-in; `status` reports `intent_loaded` /
-`intent_loadable`. Cold sessions degrade gracefully ("intent layer not loaded;
-source range available via get_source"). Needs the optional dep:
-`pip install 'naja-scope[intent]'`. (This is route 1 of DESIGN.md "Phase 2" — the
-prototype that passed the eval gate; the exact in-engine link is P2.2, see
-`docs/phase2-plan.md`.)
+Intent (phase 2): `get_intent` — source-level facts the netlist *erases in
+lowering*: enum/typedef state names + encodings (incl. **package** typedefs whose
+members live in another file), **packed struct/union** fields, and **symbolic
+parameter expressions** (the formula behind a baked-in width). Backed by naja's
+in-engine SNL↔slang link (`keep_ast_link`, najaeda 0.7.8) — a thin, pyslang-free
+client that calls `naja.intent_*` and returns plain dicts; **no second
+elaboration**. It is **warm-only** (a slang `Compilation` never serializes):
+enable it with `load_intent`, `load_systemverilog(intent=true)` /
+`load_snapshot(intent=true)`, or the `NAJA_SCOPE_INTENT=1` env opt-in; `status`
+reports `intent_loaded` / `intent_loadable`. Cold sessions degrade gracefully
+("intent layer not loaded; source range available via get_source") and re-bind by
+re-elaborating from the snapshot-persisted load spec. No extra Python dependency
+(see DESIGN.md "Phase 2" + `docs/phase2-plan.md`).
 
 Escape hatch: `query_python` — najaeda is the query language; recurring
 patterns observed there get promoted to first-class tools.

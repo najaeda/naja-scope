@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,12 +7,32 @@ name = "naja-scope"
 version = "0.1.0"
 description = "Agent-facing MCP query layer over najaeda: navigate elaborated SystemVerilog designs without loading source into context."
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+authors = [
+    { name = "naja authors", email = "contact@keplertech.io" },
+]
+keywords = ["mcp", "systemverilog", "eda", "netlist", "rtl", "najaeda", "llm", "agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+    "Topic :: Software Development :: Libraries",
+]
 dependencies = [
     "najaeda>=0.7.8",
     "mcp>=1.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/najaeda/naja-scope"
+Repository = "https://github.com/najaeda/naja-scope"
+Issues = "https://github.com/najaeda/naja-scope/issues"
 
 # Phase-2 living-intent layer (get_intent) needs NO extra Python dependency: it
 # is a thin client over naja's in-engine SNL↔slang link (naja.intent_*), which
