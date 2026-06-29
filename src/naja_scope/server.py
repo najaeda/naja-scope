@@ -211,6 +211,32 @@ def query_python(code: str) -> dict:
 
 
 def main():
+    # naja-scope is a stdio MCP server: with no args it speaks JSON-RPC on
+    # stdin/stdout and is meant to be launched by an MCP client. Handle the
+    # interactive flags people reflexively try so they get usage instead of a
+    # stream of JSON-RPC parse errors.
+    import argparse
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    try:
+        _version = _pkg_version("naja-scope")
+    except PackageNotFoundError:  # running from a source tree without install
+        _version = "unknown"
+
+    parser = argparse.ArgumentParser(
+        prog="naja-scope-mcp",
+        description="naja-scope MCP server: navigate elaborated SystemVerilog "
+                    "designs. Runs as a stdio MCP server (JSON-RPC over "
+                    "stdin/stdout); launch it from an MCP client rather than "
+                    "interactively.",
+        epilog="Example MCP client config:\n"
+               '  {"mcpServers": {"naja-scope": {"command": "naja-scope-mcp"}}}',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--version", action="version",
+                        version=f"naja-scope-mcp {_version}")
+    parser.parse_args()
+
     # naja's C++ logger writes to stdout, which would corrupt the JSON-RPC
     # stream. Route fd 1 to stderr for everyone, and give the MCP transport a
     # private duplicate of the real stdout.

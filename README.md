@@ -1,5 +1,10 @@
 # naja-scope
 
+[![PyPI version](https://img.shields.io/pypi/v/naja-scope.svg)](https://pypi.org/project/naja-scope/)
+[![Python versions](https://img.shields.io/pypi/pyversions/naja-scope.svg)](https://pypi.org/project/naja-scope/)
+[![CI](https://github.com/najaeda/naja-scope/actions/workflows/ci.yml/badge.svg)](https://github.com/najaeda/naja-scope/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 Agent-facing query layer over [najaeda](https://github.com/najaeda/naja): an
 MCP server whose tools let AI agents navigate elaborated SystemVerilog
 designs — hierarchy, connectivity, drivers, cones, and source back-links —
