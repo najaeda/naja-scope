@@ -167,7 +167,7 @@ A runnable end-to-end walkthrough lives in [`examples/`](examples/).
 ## Requirements
 
 - Python 3.10+
-- Works anywhere `najaeda` runs (Linux, macOS)
+- Works anywhere `najaeda` runs (Linux, macOS, Windows)
 
 ---
 

@@ -150,7 +150,7 @@ Once a design is loaded, your assistant can:
 ## Requirements
 
 - Python 3.10+
-- Works anywhere `najaeda` runs (Linux, macOS)
+- Works anywhere `najaeda` runs (Linux, macOS, Windows)
 
 ---
 
