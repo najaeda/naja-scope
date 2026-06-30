@@ -1,9 +1,19 @@
-# Example: a guided tour on a small UART
+# Examples: guided tours
 
-This folder contains a tiny, self-contained SystemVerilog design
-([`uart.sv`](uart.sv)) and a scripted tour ([`walkthrough.py`](walkthrough.py))
-that asks naja-scope the kind of questions an AI agent asks — and shows the
-small, exact answers it gets back.
+This folder contains tiny, self-contained designs and scripted tours that ask
+naja-scope the kind of questions an AI agent asks — and show the small, exact
+answers it gets back:
+
+- **RTL** — [`uart.sv`](uart.sv) + [`walkthrough.py`](walkthrough.py): a small
+  SystemVerilog UART transmitter.
+- **Gate-level** — [`stdcells.lib`](stdcells.lib) + [`counter2.v`](counter2.v) +
+  [`gate_level.py`](gate_level.py): a post-synthesis structural netlist driven
+  by a Liberty cell library (see [below](#gate-level-a-synthesized-netlist)).
+
+## RTL tour
+
+The UART tour ([`walkthrough.py`](walkthrough.py)) loads
+[`uart.sv`](uart.sv) and asks a handful of real design questions.
 
 ## Run it
 
@@ -81,3 +91,41 @@ natural language:
 
 See the [top-level README](../README.md) for client setup
 (`claude mcp add naja-scope -- naja-scope-mcp`).
+
+## Gate-level: a synthesized netlist
+
+naja-scope is not only for RTL. Point it at a **structural Verilog netlist**
+plus the **Liberty library** that defines its standard cells, and you navigate
+the gates the same way.
+
+[`counter2.v`](counter2.v) is a 2-bit counter built entirely from cells
+(`INV`, `XOR2`, `DFF`) defined in [`stdcells.lib`](stdcells.lib) — what a design
+looks like *after* synthesis: no `always` blocks, no operators, just wired-up
+instances.
+
+```sh
+python examples/gate_level.py
+```
+
+The tour loads the library first, then the netlist, and shows:
+
+```
+loaded: top=counter2  cells=4  ports=3
+cells : {'DFF': 2, 'INV': 1, 'XOR2': 1}        # get_module_card
+q1 driven by: counter2.u_ff1  model=DFF pin=Q  # get_drivers
+fan-in of u_ff1.D stops at cells: u_ff0, u_ff1 # trace_cone
+```
+
+Two calls to load (`load_liberty`, then `load_verilog`), then the same
+`get_hierarchy` / `get_module_card` / `get_drivers` / `trace_cone` tools as on
+RTL. The flops are opaque library cells, so a fan-in cone stops at them as its
+cell (black-box) frontier. A gate netlist carries no SystemVerilog source info,
+so `get_source` has nothing to point at here — gate-level is about structure and
+connectivity. [`tests/test_examples_gate_level.py`](../tests/test_examples_gate_level.py)
+pins these answers.
+
+From your AI assistant, in natural language:
+
+> *"Load the Liberty library `examples/stdcells.lib`, then the gate netlist
+> `examples/counter2.v`, and tell me what cells it's built from and what drives
+> `q1`."*

@@ -211,8 +211,10 @@ def query_python(code: str) -> dict:
 
 
 def main():
-    # naja-scope is a stdio MCP server: with no args it speaks JSON-RPC on
-    # stdin/stdout and is meant to be launched by an MCP client. Handle the
+    # naja-scope defaults to a stdio MCP server: with no args it speaks JSON-RPC
+    # on stdin/stdout and is meant to be launched by an MCP client. It can also
+    # serve over HTTP (--transport streamable-http|sse) for clients that connect
+    # to a remote MCP URL, e.g. ChatGPT custom connectors. Handle the
     # interactive flags people reflexively try so they get usage instead of a
     # stream of JSON-RPC parse errors.
     import argparse
@@ -226,26 +228,42 @@ def main():
     parser = argparse.ArgumentParser(
         prog="naja-scope-mcp",
         description="naja-scope MCP server: navigate elaborated SystemVerilog "
-                    "designs. Runs as a stdio MCP server (JSON-RPC over "
-                    "stdin/stdout); launch it from an MCP client rather than "
-                    "interactively.",
-        epilog="Example MCP client config:\n"
-               '  {"mcpServers": {"naja-scope": {"command": "naja-scope-mcp"}}}',
+                    "and gate-level designs. Defaults to a stdio MCP server "
+                    "(JSON-RPC over stdin/stdout), launched by an MCP client; "
+                    "use --transport for an HTTP endpoint a remote client (e.g. "
+                    "ChatGPT) can connect to.",
+        epilog="Examples:\n"
+               "  # stdio (Claude Code / Claude Desktop):\n"
+               '  {"mcpServers": {"naja-scope": {"command": "naja-scope-mcp"}}}\n'
+               "  # HTTP endpoint (ChatGPT connector / remote client):\n"
+               "  naja-scope-mcp --transport streamable-http --host 127.0.0.1 --port 8000",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version",
                         version=f"naja-scope-mcp {_version}")
-    parser.parse_args()
+    parser.add_argument("--transport", choices=("stdio", "streamable-http", "sse"),
+                        default="stdio",
+                        help="MCP transport (default: stdio). Use "
+                             "streamable-http or sse to serve over HTTP.")
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="bind host for HTTP transports (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8000,
+                        help="bind port for HTTP transports (default: 8000)")
+    args = parser.parse_args()
 
-    # naja's C++ logger writes to stdout, which would corrupt the JSON-RPC
-    # stream. Route fd 1 to stderr for everyone, and give the MCP transport a
-    # private duplicate of the real stdout.
+    mcp.settings.host = args.host
+    mcp.settings.port = args.port
+
+    # naja's C++ logger writes to stdout, which would corrupt the stdio JSON-RPC
+    # stream. Route fd 1 to stderr for everyone (harmless for HTTP, where the
+    # protocol does not use stdout), and give the transport a private duplicate
+    # of the real stdout.
     import io
     real_stdout = os.dup(1)
     os.dup2(2, 1)
     sys.stdout = io.TextIOWrapper(os.fdopen(real_stdout, "wb"),
                                   encoding="utf-8", line_buffering=True)
-    mcp.run()
+    mcp.run(transport=args.transport)
 
 
 if __name__ == "__main__":

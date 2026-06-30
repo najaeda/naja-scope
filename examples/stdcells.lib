@@ -1,0 +1,52 @@
+/*
+ * stdcells.lib — a tiny, fictional standard-cell library for the gate-level
+ * example. It is NOT a real timing library: it carries just enough Liberty
+ * (cell pins, directions, boolean functions, and the ff() group that marks a
+ * flop as sequential) for naja to model counter2.v as a gate netlist.
+ *
+ * Loading order matters: load this library first (load_liberty), then the
+ * structural netlist (load_verilog) that instantiates these cells.
+ */
+library (stdcells) {
+
+  cell (INV) {
+    pin (I) { direction : input ; }
+    pin (Z) { direction : output ; function : "!I" ; }
+  }
+
+  cell (BUF) {
+    pin (I) { direction : input ; }
+    pin (Z) { direction : output ; function : "I" ; }
+  }
+
+  cell (AND2) {
+    pin (A) { direction : input ; }
+    pin (B) { direction : input ; }
+    pin (Z) { direction : output ; function : "A&B" ; }
+  }
+
+  cell (OR2) {
+    pin (A) { direction : input ; }
+    pin (B) { direction : input ; }
+    pin (Z) { direction : output ; function : "A|B" ; }
+  }
+
+  cell (XOR2) {
+    pin (A) { direction : input ; }
+    pin (B) { direction : input ; }
+    pin (Z) { direction : output ; function : "A^B" ; }
+  }
+
+  /* Positive-edge D flip-flop. The ff() group is what makes naja treat this
+   * cell as sequential — so logic cones stop at it and get_drivers reports it
+   * as a sequential driver. */
+  cell (DFF) {
+    ff ("IQ") {
+      next_state : "D" ;
+      clocked_on : "CK" ;
+    }
+    pin (CK) { direction : input ; clock : true ; }
+    pin (D)  { direction : input ; }
+    pin (Q)  { direction : output ; function : "IQ" ; }
+  }
+}

@@ -34,6 +34,11 @@ turns your design into something an agent can *navigate*:
 - 💡 **Recover design intent** — enum state names, struct/union fields, and
   parameter formulas that normally vanish when a design is elaborated.
 
+Works on **RTL and gate-level netlists** alike: load elaborated SystemVerilog,
+or load a post-synthesis structural Verilog netlist together with its Liberty
+standard-cell library and navigate the gates the same way (see
+[Gate-level designs](#gate-level-designs)).
+
 All responses are token-bounded: lists paginate, large results truncate with
 clear markers. Your context stays small; your answers stay accurate.
 
@@ -90,6 +95,53 @@ Then just ask your assistant to load a design and start exploring:
 
 The agent loads the design once and answers follow-up questions instantly — no
 re-reading source, no giant pastes.
+
+---
+
+## Connect it to ChatGPT
+
+ChatGPT connects to MCP servers over an **HTTP endpoint** (custom connectors /
+Developer mode), so run naja-scope as an HTTP server instead of stdio:
+
+```sh
+naja-scope-mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+This serves MCP at `http://<host>:8000/mcp`. Because ChatGPT reaches the server
+over the network, expose that URL where ChatGPT can see it — e.g. a public
+tunnel for a local run:
+
+```sh
+# example: a tunnel to your local server (ngrok, cloudflared, …)
+ngrok http 8000        # -> https://<something>.ngrok.app  →  add /mcp
+```
+
+Then in ChatGPT, open **Settings → Connectors** (enable Developer mode if
+needed), **add a custom connector**, and paste the server URL
+(`https://<your-host>/mcp`). Once connected, ask it to load a design and explore
+exactly as above. (ChatGPT's connector UI evolves; the constant is: it needs an
+HTTPS MCP URL, which `--transport streamable-http` provides.)
+
+> ⚠️ The HTTP server has no built-in auth — only expose it over a trusted tunnel,
+> and prefer short-lived tunnels for local experiments.
+
+---
+
+## Gate-level designs
+
+Already synthesized? Load the structural Verilog netlist together with the
+Liberty library that defines its standard cells, and navigate the gates the same
+way as RTL:
+
+> *"Load the Liberty library `pdk/stdcells.lib`, then the gate netlist
+> `build/top.v`, and tell me what cells `top` is built from and what drives
+> `data_out`."*
+
+Hierarchy, per-cell counts (`get_module_card`), drivers/loads, and logic cones
+all work on the netlist; cones stop at the sequential cells. A gate netlist
+carries no source line info, so `get_source` applies to RTL only. A runnable
+example lives in [`examples/`](examples/) (`stdcells.lib` + `counter2.v` +
+`gate_level.py`).
 
 ---
 
