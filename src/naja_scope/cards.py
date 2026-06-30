@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Deterministic module cards (DESIGN.md section 7).
+"""Deterministic module cards.
 
 A *card* is a small, fixed-size, deterministic summary of one elaborated
 module -- like an index card or a baseball card: a compact at-a-glance profile,
@@ -50,7 +50,7 @@ from .source_index import SrcRange
 # never from the signal name. Until naja exposes FF clock/reset pin roles (and
 # we ingest SDC), these fields stay name-based and are flagged as a workaround
 # in the card output (`name_based_workaround`). Do not build anything on top of
-# them that assumes they are reliable. See DESIGN.md section 7.
+# them that assumes they are reliable.
 _CLK_RE = re.compile(r"(?:^|_)(clk|clock|ck)(?:$|_|\d)", re.IGNORECASE)
 _RST_RE = re.compile(r"(?:^|_)(rst|reset)(?:$|_|\d|n\b)", re.IGNORECASE)
 # Active-low polarity guess: strip a trailing input/output direction suffix
@@ -178,7 +178,7 @@ def module_card(session: Session, module: str,
         "heuristic_fields": ["clock_candidates", "reset_candidates"],
         # WORKAROUND: clock/reset fields are guessed from port names, which is
         # unsound. The sound source is SDC (create_clock) + back-propagation
-        # from sequential-cell clock/reset pins. See DESIGN.md section 7.
+        # from sequential-cell clock/reset pins.
         "name_based_workaround": ["clock_candidates", "reset_candidates"],
     }
     if params:

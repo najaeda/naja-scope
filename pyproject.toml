@@ -36,12 +36,11 @@ Homepage = "https://github.com/najaeda/naja-scope"
 Repository = "https://github.com/najaeda/naja-scope"
 Issues = "https://github.com/najaeda/naja-scope/issues"
 
-# Phase-2 living-intent layer (get_intent) needs NO extra Python dependency: it
+# The living-intent layer (get_intent) needs NO extra Python dependency: it
 # is a thin client over naja's in-engine SNL↔slang link (naja.intent_*), which
 # walks the live slang AST in C++ and returns plain data. There is no pyslang
 # and no second elaboration. The only requirement is a najaeda build that
-# retains the link (keep_ast_link); warm-only. See
-# docs/naja-feature-request-slang-coupling.md and DESIGN.md "Phase 2".
+# retains the link (keep_ast_link); warm-only.
 
 [project.scripts]
 naja-scope-mcp = "naja_scope.server:main"

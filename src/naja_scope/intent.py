@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Phase-2 living-intent layer — thin client over naja's in-engine SNL↔slang link.
+"""Living-intent layer — thin client over naja's in-engine SNL↔slang link.
 
 Recovers the source-level facts erased by SystemVerilog lowering — enum/FSM state
 names + encodings, declared type names, and symbolic parameter expressions — by
@@ -7,11 +7,10 @@ calling naja's curated intent API (`naja.intent_type_of` / `intent_parameters_of
 / `intent_package_member`). Those walk the live slang AST *in C++*, over the
 SNL↔slang bimap naja built at lowering time (`keep_ast_link=True`), and return
 plain Python data. There is NO pyslang here and no second elaboration: naja owns
-the one AST and answers in dicts (DESIGN.md "Exposure options" option 2; the
-naja-side spec is docs/naja-feature-request-slang-coupling.md).
+the one AST and answers in dicts.
 
-Warm-only (DESIGN.md "Snapshot asymmetry"): the link exists only while the slang
-Compilation is alive in-process — i.e. after a SystemVerilog load with
+Warm-only (the slang Compilation never serializes): the link exists only while it
+is alive in-process — i.e. after a SystemVerilog load with
 `keep_ast_link`. `naja.intent_available()` reports it. A cold snapshot load has no
 Compilation, so intent degrades to "not loaded" until a warm (re)load; the exact
 relink-after-snapshot tier is deferred.
@@ -62,7 +61,7 @@ class IntentProvider:
 
     Stateless beyond the session handle: the live AST is owned by naja (kept
     alive by `keep_ast_link`), so "loaded" is simply `naja.intent_available()`.
-    Plugs into Session as the IntentProvider seam (DESIGN.md prep hook 2).
+    Plugs into Session as the IntentProvider seam.
     """
 
     def __init__(self, session):

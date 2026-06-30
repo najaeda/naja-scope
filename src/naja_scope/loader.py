@@ -5,7 +5,7 @@ Elaboration, Liberty/primitive loading, and naja-if snapshots, driven directly
 through the raw `naja` DB/universe API (NLUniverse / NLDB) rather than the
 high-level najaeda.netlist loaders. This keeps naja-scope on the raw layer
 end to end; the only remaining high-level surface is the query_python escape
-hatch (DESIGN.md "two access levels").
+hatch.
 
 The orchestration mirrors what najaeda.netlist does: lazy universe/top-DB
 bootstrap, and the `--top` override injected through a temporary flist.
@@ -65,9 +65,9 @@ def load_systemverilog(files: List[str], flist: Optional[str] = None,
             flist=effective_flist,
             suppress_warnings=None,
             # Retain the live slang Compilation + SNL<->slang bimap for the
-            # phase-2 intent layer (naja.intent_*). Off by default (the
-            # Compilation is GB-class on large designs); enabled only when the
-            # intent layer is requested. See docs/naja-feature-request-slang-coupling.md.
+            # intent layer (naja.intent_*). Off by default (the Compilation is
+            # GB-class on large designs); enabled only when the intent layer is
+            # requested.
             keep_ast_link=keep_ast_link,
         )
     finally:
