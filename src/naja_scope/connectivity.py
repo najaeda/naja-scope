@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Drivers/loads through equipotentials — the cross-hierarchy electrical edge
-no source-level tool has (DESIGN.md section 2).
+no source-level tool has.
 
 Built on the raw SNLEquipotential: we classify inst-term occurrences by
 direction and leaf-ness ourselves (the classification the high-level wrapper

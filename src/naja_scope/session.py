@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Design session: one design per server process (DESIGN.md section 1).
+"""Design session: one design per server process.
 
 Owns the loaded netlist, the lazily built source index, and the directories
-used to resolve relative source paths. This is the StructuralProvider seam
-(DESIGN.md phase-1 prep hook 2): phase 2 adds an IntentProvider next to it
-without touching tool handlers.
+used to resolve relative source paths. This is the structural provider; the
+optional intent provider plugs in next to it without touching tool handlers.
 """
 
 from __future__ import annotations
@@ -23,8 +22,8 @@ _SIDECAR_META = "naja_scope_session.json"
 class Session:
     """Structural provider: live SNL + source index + load metadata.
 
-    Phase 2 (DESIGN.md prep hook 2) adds the `IntentProvider` next to this
-    StructuralProvider: `self.intent`, a thin client over naja's in-engine
+    The optional `IntentProvider` sits next to this structural provider:
+    `self.intent`, a thin client over naja's in-engine
     SNL↔slang link. The link is warm-only (a slang Compilation is never
     serializable — see intent.py), so `intent_available` is True only after a
     SystemVerilog load with `keep_ast_link`; a cold snapshot load has none until
@@ -87,7 +86,7 @@ class Session:
                           "top": None}
         return snl.top_node()
 
-    # -- intent layer (phase 2) ----------------------------------------------
+    # -- intent layer --------------------------------------------------------
 
     def load_intent(self, flist: Optional[str] = None,
                     files: Optional[List[str]] = None,
@@ -100,8 +99,8 @@ class Session:
         session must have the flist/files in load_spec or pass them here).
 
         Re-elaboration on the 0.7.8 build is cheap (~12s cva6-small / ~29s
-        cva6-full). The exact relink-without-re-elaboration tier is deferred
-        (docs/naja-feature-request-slang-coupling.md "Cold tier").
+        cva6-full). The exact relink-without-re-elaboration tier is not yet
+        implemented.
         """
         if naja.intent_available():
             return self.intent

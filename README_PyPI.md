@@ -33,6 +33,10 @@ turns your design into something an agent can *navigate*:
 - 💡 **Recover design intent** — enum state names, struct/union fields, and
   parameter formulas that normally vanish when a design is elaborated.
 
+Works on **RTL and gate-level netlists** alike — load elaborated SystemVerilog,
+or a post-synthesis structural Verilog netlist plus its Liberty standard-cell
+library (see [Gate-level designs](#gate-level-designs)).
+
 All responses are token-bounded: lists paginate, large results truncate with
 clear markers. Your context stays small; your answers stay accurate.
 
@@ -93,6 +97,39 @@ re-reading source, no giant pastes.
 
 ---
 
+## Connect it to ChatGPT
+
+ChatGPT connects to MCP servers over an **HTTP endpoint** (custom connectors /
+Developer mode), so run naja-scope as an HTTP server instead of stdio:
+
+```sh
+naja-scope-mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+This serves MCP at `http://<host>:8000/mcp`. Expose that URL where ChatGPT can
+reach it (e.g. an `ngrok`/`cloudflared` tunnel for a local run), then in ChatGPT
+open **Settings → Connectors**, **add a custom connector**, and paste the URL
+(`https://<your-host>/mcp`). The HTTP server has no built-in auth — only expose
+it over a trusted tunnel.
+
+---
+
+## Gate-level designs
+
+Already synthesized? Load the structural Verilog netlist together with the
+Liberty library that defines its standard cells, and navigate the gates the same
+way as RTL:
+
+> *"Load the Liberty library `pdk/stdcells.lib`, then the gate netlist
+> `build/top.v`, and tell me what cells `top` is built from and what drives
+> `data_out`."*
+
+Hierarchy, per-cell counts, drivers/loads, and logic cones all work on the
+netlist; cones stop at the sequential cells. (A gate netlist carries no source
+line info, so `get_source` applies to RTL only.)
+
+---
+
 ## What you can ask
 
 Once a design is loaded, your assistant can:
@@ -113,7 +150,7 @@ Once a design is loaded, your assistant can:
 ## Requirements
 
 - Python 3.10+
-- Works anywhere `najaeda` runs (Linux, macOS)
+- Works anywhere `najaeda` runs (Linux, macOS, Windows)
 
 ---
 

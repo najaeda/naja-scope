@@ -19,12 +19,12 @@ import pytest
 
 from naja_scope import api
 
-_SNAP = os.path.join(os.path.dirname(__file__), "..", "eval", ".cache",
-                     "cva6-small", "snapshot")
+_SNAP = os.path.join(os.path.dirname(__file__), "..", "internal", "eval",
+                     ".cache", "cva6-small", "snapshot")
 
 pytestmark = pytest.mark.skipif(
     not os.path.isfile(os.path.join(_SNAP, "snl.mf")),
-    reason="cva6-small snapshot absent (eval/.cache); skipping slow regression")
+    reason="cva6-small snapshot absent; skipping slow regression")
 
 # The 10 real submodules of the cva6 top, by model name. The cache subsystem
 # model differs by config (cv32 = cva6_hpdcache_subsystem, cv64 =

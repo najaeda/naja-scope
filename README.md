@@ -5,137 +5,198 @@
 [![CI](https://github.com/najaeda/naja-scope/actions/workflows/ci.yml/badge.svg)](https://github.com/najaeda/naja-scope/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-Agent-facing query layer over [najaeda](https://github.com/najaeda/naja): an
-MCP server whose tools let AI agents navigate elaborated SystemVerilog
-designs — hierarchy, connectivity, drivers, cones, and source back-links —
-without loading source code into context.
+**Let your AI assistant explore SystemVerilog designs — without pasting source code into the chat.**
 
-See [DESIGN.md](DESIGN.md) for architecture and scope;
-[NAJAEDA_NOTES.md](NAJAEDA_NOTES.md) for upstream feature requests and bugs
-found while building phase 1.
+naja-scope is an [MCP](https://modelcontextprotocol.io) server that gives AI
+agents (Claude, and any MCP-compatible assistant) a precise, structured view of
+your elaborated SystemVerilog design. Instead of dumping thousands of lines of
+RTL into the model's context, the agent asks targeted questions — *what drives
+this signal? what's inside this module? where does this net come from?* — and
+gets back small, exact answers with file-and-line references.
 
-## Status: phase 1 (structural spine + source ranges) + phase-2 intent layer
+Built on the [najaeda](https://github.com/najaeda/naja) netlist engine.
 
-Phase 1 is the core; the phase-2 living-intent layer (`get_intent`, warm-only) is
-productized — a thin, pyslang-free client over naja's in-engine SNL↔slang link
-(`keep_ast_link`, shipped in najaeda 0.7.8). Its eval gate passed and was
-re-confirmed on the productized layer (scope+intent ≤ grep turns on cva6-small;
-see `docs/phase2-plan.md` §4). The DESIGN.md §3 workflow works end to end:
+---
 
-```
-resolve("uart_top.u_tx.tx_o")   → term descriptor with src range
-get_drivers("uart_top.tx_o")    → { path: "uart_top.u_tx.tx_o_dff",
-                                    model: "naja_dff", pin: "Q",
-                                    src: "rtl/uart.sv:93-94" }
-get_source("…tx_o_dff")         → the always_ff block, ~5 lines
-```
+## Why
 
-Three calls, well under a thousand tokens, answer plus quotable source.
+Large designs don't fit in a chat window. Pasting RTL is slow, expensive, and
+the model still can't reliably trace connectivity across hierarchy. naja-scope
+turns your design into something an agent can *navigate*:
 
-## Install / run
+- 🔎 **Trace connectivity** — find what drives or loads any signal, across
+  module boundaries.
+- 🌲 **Walk the hierarchy** — explore modules, instances, and ports on demand.
+- 🎯 **Jump to source** — every answer comes with `file:line` ranges, so the
+  agent can quote the exact RTL that matters.
+- 🧩 **Logic cones** — trace fan-in / fan-out combinational cones up to the
+  register boundary.
+- 💡 **Recover design intent** — enum state names, struct/union fields, and
+  parameter formulas that normally vanish when a design is elaborated.
+
+Works on **RTL and gate-level netlists** alike: load elaborated SystemVerilog,
+or load a post-synthesis structural Verilog netlist together with its Liberty
+standard-cell library and navigate the gates the same way (see
+[Gate-level designs](#gate-level-designs)).
+
+All responses are token-bounded: lists paginate, large results truncate with
+clear markers. Your context stays small; your answers stay accurate.
+
+---
+
+## Does it actually help?
+
+We ran a head-to-head on [CVA6](https://github.com/openhwgroup/cva6) (a
+production RISC-V core): the same 17 design questions, answered by Claude once
+with **only naja-scope** and once with **only `grep`/file reading** over the
+source tree.
+
+| Approach            | Correct answers | Conversation turns | Input tokens |
+| ------------------- | :-------------: | :----------------: | :----------: |
+| **naja-scope**      |    **17 / 17**  |       **77**       |   **182 k**  |
+| grep + read source  |     10 / 17     |         123        |     888 k    |
+
+More correct answers, fewer back-and-forth turns, and **~5× fewer tokens** — the
+agent stops scrolling through files and goes straight to the structural answer.
+
+---
+
+## Install
 
 ```sh
-pip install naja-scope        # pulls najaeda>=0.7.8 and mcp from PyPI
+pip install naja-scope        # pulls najaeda and the MCP runtime from PyPI
 naja-scope-mcp                # stdio MCP server
 ```
 
-Register with Claude Code:
+---
+
+## Connect it to Claude Code
 
 ```sh
 claude mcp add naja-scope -- naja-scope-mcp
 ```
 
-For development from a checkout, install editable instead:
+Or add it to any MCP client's config:
 
-```sh
-python3.11 -m venv .venv
-.venv/bin/pip install -e .
+```json
+{
+  "mcpServers": {
+    "naja-scope": {
+      "command": "naja-scope-mcp"
+    }
+  }
+}
 ```
 
-## Tools
+Then just ask your assistant to load a design and start exploring:
 
-Lifecycle: `load_systemverilog` (files/flist/top), `load_verilog`,
-`load_liberty`, `load_primitives`, `save_snapshot`, `load_snapshot`,
-`reset_universe`, `status`.
+> *"Load my UART design from `rtl/uart.sv` with top `uart_top`, then show me
+> everything that drives `tx_o`."*
 
-Navigation: `resolve` (paths, bit selects, glob, did-you-mean),
-`find` (design-wide glob, paginated), `get_hierarchy`.
+The agent loads the design once and answers follow-up questions instantly — no
+re-reading source, no giant pastes.
 
-Connectivity: `get_drivers`, `get_loads` (equipotential endpoints),
-`trace_cone` (fanin/fanout combinational cone via naja `SNLLogicalCone`;
-stop-at-flops/ports/black-boxes; counts + a `cross_hierarchy` summary naming the
-frontier registers outside the cone root's subtree; lists bounded by
-`max_frontier`).
+---
 
-Source & summaries: `get_source` (the SV lines that produced an object),
-`get_module_card` (deterministic ports/counts/clock-reset card),
-`get_stats` (per-model rollups).
+## Connect it to ChatGPT
 
-Intent (phase 2): `get_intent` — source-level facts the netlist *erases in
-lowering*: enum/typedef state names + encodings (incl. **package** typedefs whose
-members live in another file), **packed struct/union** fields, and **symbolic
-parameter expressions** (the formula behind a baked-in width). Backed by naja's
-in-engine SNL↔slang link (`keep_ast_link`, najaeda 0.7.8) — a thin, pyslang-free
-client that calls `naja.intent_*` and returns plain dicts; **no second
-elaboration**. It is **warm-only** (a slang `Compilation` never serializes):
-enable it with `load_intent`, `load_systemverilog(intent=true)` /
-`load_snapshot(intent=true)`, or the `NAJA_SCOPE_INTENT=1` env opt-in; `status`
-reports `intent_loaded` / `intent_loadable`. Cold sessions degrade gracefully
-("intent layer not loaded; source range available via get_source") and re-bind by
-re-elaborating from the snapshot-persisted load spec. No extra Python dependency
-(see DESIGN.md "Phase 2" + `docs/phase2-plan.md`).
+ChatGPT connects to MCP servers over an **HTTP endpoint** (custom connectors /
+Developer mode), so run naja-scope as an HTTP server instead of stdio:
 
-Escape hatch: `query_python` — najaeda is the query language; recurring
-patterns observed there get promoted to first-class tools.
+```sh
+naja-scope-mcp --transport streamable-http --host 127.0.0.1 --port 8000
+```
 
-Conventions (DESIGN.md §6): object references are hierarchical path strings;
-every list is paginated (`limit`, `cursor`); responses carry
-`src: "file:start-end"` where known; errors return structured suggestions.
+This serves MCP at `http://<host>:8000/mcp`. Because ChatGPT reaches the server
+over the network, expose that URL where ChatGPT can see it — e.g. a public
+tunnel for a local run:
 
-## How source ranges work today
+```sh
+# example: a tunnel to your local server (ngrok, cloudflared, …)
+ngrok http 8000        # -> https://<something>.ngrok.app  →  add /mcp
+```
 
-Since najaeda 0.7.2 every SNL object exposes its SystemVerilog origin directly
-in Python through `getSourceLoc()` (naja #389/#390). naja-scope walks the raw
-designs once and reads those locations straight into a sidecar index keyed by
-`(model, kind, name)` — no Verilog dump, no attribute reparsing. Anonymous
-lowered objects (FFs, gates) are first given stable derived names (`tx_o_dff`
-for the FF driving `tx_o`), which is also what makes them addressable by path.
-The index serializes alongside the naja-if snapshot, so source ranges survive a
-snapshot reload (fixed in 0.7.4) with no re-elaboration.
+Then in ChatGPT, open **Settings → Connectors** (enable Developer mode if
+needed), **add a custom connector**, and paste the server URL
+(`https://<your-host>/mcp`). Once connected, ask it to load a design and explore
+exactly as above. (ChatGPT's connector UI evolves; the constant is: it needs an
+HTTPS MCP URL, which `--transport streamable-http` provides.)
 
-## Scope
+> ⚠️ The HTTP server has no built-in auth — only expose it over a trusted tunnel,
+> and prefer short-lived tunnels for local experiments.
 
-RTL/design questions on synthesizable SystemVerilog. Not a DV/testbench tool
-(DESIGN.md §2 explains what is lost in lowering and why).
+---
+
+## Gate-level designs
+
+Already synthesized? Load the structural Verilog netlist together with the
+Liberty library that defines its standard cells, and navigate the gates the same
+way as RTL:
+
+> *"Load the Liberty library `pdk/stdcells.lib`, then the gate netlist
+> `build/top.v`, and tell me what cells `top` is built from and what drives
+> `data_out`."*
+
+Hierarchy, per-cell counts (`get_module_card`), drivers/loads, and logic cones
+all work on the netlist; cones stop at the sequential cells. A gate netlist
+carries no source line info, so `get_source` applies to RTL only. A runnable
+example lives in [`examples/`](examples/) (`stdcells.lib` + `counter2.v` +
+`gate_level.py`).
+
+---
+
+## What you can ask
+
+Once a design is loaded, your assistant can:
+
+- **Resolve** any signal or instance by hierarchical path (with glob and
+  did-you-mean suggestions).
+- **Find** objects design-wide by pattern.
+- **Show the hierarchy** of any module.
+- **Get drivers / loads** of a net — the real endpoints, across hierarchy.
+- **Trace logic cones** (fan-in / fan-out) and see the register frontier.
+- **Get source** — the exact SystemVerilog lines behind any object.
+- **Get a module card** — ports, counts, clock/reset at a glance.
+- **Recover design intent** — state-machine names, struct fields, parameter
+  expressions lost during elaboration.
+
+A runnable end-to-end walkthrough lives in [`examples/`](examples/).
+
+---
+
+## Requirements
+
+- Python 3.10+
+- Works anywhere `najaeda` runs (Linux, macOS, Windows)
+
+---
 
 ## Development
 
 ```sh
-.venv/bin/python -m pytest tests/ -q
+# from a checkout
+python3 -m venv .venv
+.venv/bin/pip install -e .
+.venv/bin/python -m pytest -q
 ```
 
-The structural/source/snapshot tests are green on najaeda 0.7.4+ (no xfails):
-the upstream bugs once tracked — parameter-specialization merging and naja-if
-SV-snapshot reload — are both fixed (see NAJAEDA_NOTES.md); the snapshot
-round-trip (`tests/test_zz_snapshot.py`) is a normal passing test.
+The full test suite runs against a plain `pip install` of `najaeda` — no native
+build required. The CVA6 cross-hierarchy cone regression
+(`tests/test_zzz_cone_cva6.py`) is slow and skips automatically unless a CVA6
+snapshot is present.
 
-naja-scope targets **najaeda 0.7.8** (on PyPI since 2026-06-28) — the in-engine
-SNL↔slang link (`keep_ast_link`) + curated `intent_*` API behind `get_intent`,
-the Python `NLID` value class + `NLUniverse.getObject(NLID)` that back its
-object-identity model (`docs/identity-and-addressing.md`), and the 0.7.6 gate
-combinatorial modeling `trace_cone` needs. A plain install runs the full suite:
+---
 
-```sh
-./.venv/bin/python -m pytest -q
-```
+## Support & contact
 
-For naja-side development you can instead run against a local naja build at
-`/Users/xtof/WORK/naja3`, compiled for Homebrew Python 3.14 (it segfaults under a
-3.11 interpreter), via the `.venv314` dev venv plus `PYTHONPATH`:
+- 🐛 **Found a bug or have a feature request?**
+  [Open an issue on GitHub →](https://github.com/najaeda/naja-scope/issues)
+- 📫 **Get in touch:** [contact@keplertech.io](mailto:contact@keplertech.io)
 
-```sh
-PYTHONPATH=/Users/xtof/WORK/naja3/build/test/najaeda ./.venv314/bin/python -m pytest -q
-```
+---
 
-The CVA6 cross-hierarchy cone regression (`tests/test_zzz_cone_cva6.py`) is
-slow and skips unless the `eval/.cache/cva6-small` snapshot is present.
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
+</content>
+</invoke>
