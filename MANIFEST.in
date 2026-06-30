@@ -1,0 +1,4 @@
+# Ship the runnable examples (RTL + gate-level) in the source distribution.
+# The example tests under tests/ reference ../examples, so this also makes the
+# bundled test suite runnable from an unpacked sdist.
+graft examples
