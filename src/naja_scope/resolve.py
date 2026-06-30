@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Hierarchical path resolution — the make-or-break tool (DESIGN.md section 3).
+"""Hierarchical path resolution — the make-or-break tool.
 
 Paths are dot-separated: `top.u_uart.tx_q_reg`, `top.u_cnt.count[3]`. The top
 segment is optional. The final segment may be an instance, a term (port of the

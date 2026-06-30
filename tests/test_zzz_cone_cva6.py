@@ -18,12 +18,12 @@ import pytest
 
 from naja_scope import api
 
-_SNAP = os.path.join(os.path.dirname(__file__), "..", "eval", ".cache",
-                     "cva6-small", "snapshot")
+_SNAP = os.path.join(os.path.dirname(__file__), "..", "internal", "eval",
+                     ".cache", "cva6-small", "snapshot")
 
 pytestmark = pytest.mark.skipif(
     not os.path.isfile(os.path.join(_SNAP, "snl.mf")),
-    reason="cva6-small snapshot absent (eval/.cache); skipping slow cone regression")
+    reason="cva6-small snapshot absent; skipping slow cone regression")
 
 
 @pytest.fixture(scope="module")

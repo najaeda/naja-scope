@@ -47,7 +47,7 @@ def test_friendly_label_is_readable(uart_session):
 
 def test_uniquified_counter_models_exist(uart_session):
     # Was broken in najaeda 0.5.2 (specializations merged), fixed in 0.7.0:
-    # counter and counter__elab1 (see NAJAEDA_NOTES.md).
+    # counter and counter__elab1.
     names = [d.getName() for d in _all_designs()]
     counters = [n for n in names if n.startswith("counter")]
     assert len(counters) >= 2, f"expected uniquified counters, got {names}"

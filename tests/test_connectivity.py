@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Drivers/loads/cone: the DESIGN.md section-3 workflow."""
+"""Drivers/loads/cone: the resolve -> get_drivers -> get_source workflow."""
 
 from naja_scope import api
 

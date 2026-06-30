@@ -83,7 +83,7 @@ def status() -> dict:
         "loaded": True,
         "top": _summary(top),
         "loaded_files": SESSION.loaded_files[:20],
-        # Phase-2 intent layer (get_intent): warm-only, so report whether it is
+        # Intent layer (get_intent): warm-only, so report whether it is
         # live in this session and whether the inputs to (re)load it are known.
         "intent_loaded": SESSION.intent_available,
         "intent_loadable": bool((SESSION.load_spec or {}).get("flist")
@@ -339,7 +339,7 @@ def get_source(path: str, context_lines: int = DEFAULT_SOURCE_CONTEXT) -> dict:
     # opens just above it, pull that block in so its members (FSM state names,
     # etc.) are visible in one call. Stops at a blank line, and does nothing when
     # the type is referenced (e.g. a package typedef `riscv::priv_lvl_t x;`) with
-    # no block above — exactly the case that needs the phase-2 intent layer.
+    # no block above — exactly the case that needs the intent layer.
     if resolved.kind in ("net", "term"):
         lo = max(1, rng.line - _DECL_MAX_UP)
         probe = rng.line
@@ -391,7 +391,7 @@ def _safe_seq(model) -> bool:
 def _collect_model_stats(design, memo: dict) -> dict:
     """Hierarchical stats memoized per model. Deliberately avoids
     najaeda.stats: its is_basic_primitive crashes the process on multi-output
-    primitives like naja_fa (see NAJAEDA_NOTES.md)."""
+    primitives like naja_fa."""
     model_id = design.getID()
     if model_id in memo:
         return memo[model_id]
@@ -450,12 +450,12 @@ def get_stats(path: Optional[str] = None, limit: Optional[int] = None,
     }
 
 
-# -- intent layer (phase 2) -----------------------------------------------------------
+# -- intent layer -----------------------------------------------------------
 
 def get_intent(ref: str, want: str = "auto") -> dict:
     """Query the living-intent layer for source-level facts erased by lowering.
 
-    Warm-only (DESIGN.md "Snapshot asymmetry"): if the intent layer is not
+    Warm-only (the slang Compilation never serializes): if the intent layer is not
     loaded, this degrades gracefully — the structural source range is still
     available via get_source.
     """

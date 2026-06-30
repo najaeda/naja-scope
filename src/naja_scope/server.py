@@ -40,7 +40,7 @@ def _tool(fn: Callable) -> Callable:
 
 @_tool
 def status() -> dict:
-    """Current session: loaded design summary, and whether the phase-2 intent
+    """Current session: loaded design summary, and whether the intent
     layer is live (`intent_loaded`) / re-loadable (`intent_loadable`)."""
     return api.status()
 
@@ -180,7 +180,7 @@ def get_stats(path: Optional[str] = None, limit: Optional[int] = None,
 
 @_tool
 def get_intent(ref: str, want: str = "auto") -> dict:
-    """Source-level INTENT a netlist erases in lowering (phase 2, warm-only).
+    """Source-level INTENT a netlist erases in lowering (warm-only).
     Use when the answer is in the SystemVerilog *type/declaration*, not the
     flattened gates: enum/typedef state names + encodings (incl. PACKAGE
     typedefs whose members live in another file), and symbolic PARAMETER

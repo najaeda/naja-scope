@@ -13,7 +13,7 @@ then turns the DAG into a token-bounded summary:
 * the flop frontier grouped by top-level submodule, naming the registers that
   lie OUTSIDE the cone root's own subtree -> the cross-hierarchy answer.
 
-Token-bounding here is a correctness requirement (DESIGN.md section 4): counts
+Token-bounding here is a correctness requirement: counts
 are always exact, but every materialised list is capped with a truncation
 marker — never a full node/edge dump.
 
@@ -99,7 +99,7 @@ def _cross_hierarchy(root_path: str, flops: Dict[str, dict]) -> dict:
     outside the cone root's own subtree — the cross-hierarchy affordance: in one
     call the agent learns whether (and where) the cone reaches register state
     outside `<stage>`. Token-bounded: per-subtree counts plus a few example
-    paths, never a dump (DESIGN.md section 4)."""
+    paths, never a dump."""
     root_subtree = _subtree_key(root_path)
     by_subtree: Dict[str, dict] = {}
     for path, rec in flops.items():

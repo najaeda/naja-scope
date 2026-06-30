@@ -5,7 +5,7 @@ naja-scope is built directly on the raw `naja` bindings — the Python interface
 to the SNL C++ API — not on the najaeda high-level `netlist` wrappers. The
 high-level layer is a human-ergonomics simplification; the raw layer is more
 complete (parameters, design/library enumeration, occurrence/path control) and
-is the natural substrate for the phase-2 slang-AST coupling.
+is the natural substrate for the slang-AST coupling behind the intent layer.
 
 This module centralises every raw-SNL primitive the tools need:
 
@@ -123,8 +123,7 @@ def direction_str(direction) -> str:
 # a response surfaces. Named instances keep their SV name as the path segment.
 #
 # A hierarchical object reference is, canonically, the top design's NLID
-# DesignReference + a vector of instanceIDs (this `#<id>` chain). The full model
-# is in docs/identity-and-addressing.md.
+# DesignReference + a vector of instanceIDs (this `#<id>` chain).
 
 _SANITIZE_RE = re.compile(r"\W+")
 

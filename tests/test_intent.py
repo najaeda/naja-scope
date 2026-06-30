@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Phase-2 intent layer (intent.py): package-typedef enum members + symbolic
+"""Intent layer (intent.py): package-typedef enum members + symbolic
 parameter expressions, the two capabilities the cva6-privlvl-enum /
-symbolic-param eval gates need.
+symbolic-param eval cases need.
 
 The intent layer is now a thin client over naja's in-engine SNL↔slang link
 (naja.intent_*, retained by keep_ast_link) — no pyslang, no second elaboration.

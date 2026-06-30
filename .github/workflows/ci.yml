@@ -34,6 +34,6 @@ jobs:
           pip install -e . pytest
 
       - name: Run tests
-        # The CVA6 regressions self-skip without eval/.cache (a slow snapshot
-        # absent on CI); the fast structural + intent + snapshot suite runs.
+        # The CVA6 regressions self-skip without a local snapshot (absent on
+        # CI); the fast structural + intent + snapshot suite runs.
         run: pytest -q

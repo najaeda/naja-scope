@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Structured errors. Tool handlers convert these into error responses with
-suggestions instead of opaque tracebacks (DESIGN.md section 6 conventions)."""
+suggestions instead of opaque tracebacks."""
 
 from __future__ import annotations
 
