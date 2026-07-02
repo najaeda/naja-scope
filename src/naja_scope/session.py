@@ -98,9 +98,8 @@ class Session:
         the inputs captured at load (a snapshot does not carry them, so a cold
         session must have the flist/files in load_spec or pass them here).
 
-        Re-elaboration on the 0.7.8 build is cheap (~12s cva6-small / ~29s
-        cva6-full). The exact relink-without-re-elaboration tier is not yet
-        implemented.
+        Re-elaboration is cheap (~12s cva6-small / ~29s cva6-full). The exact
+        relink-without-re-elaboration tier is not yet implemented.
         """
         if naja.intent_available():
             return self.intent

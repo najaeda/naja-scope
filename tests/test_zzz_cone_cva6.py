@@ -9,8 +9,6 @@ a core-global gating dependency a textual grep of serdiv.sv cannot reveal.
 Slow (~30s snapshot reload) and gated on the eval snapshot being present, so the
 fast unit suite skips it. Named test_zzz_* to run last: it resets the universe
 to load CVA6, which would invalidate the session-scoped UART fixture.
-Requires najaeda 0.7.6+ (gate combinatorial modeling); on 0.7.5 the cone stops
-at logic-gate black boxes and never reaches the cross-hier frontier.
 """
 import os
 

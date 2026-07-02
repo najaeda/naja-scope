@@ -2,8 +2,8 @@
 """Source range value type.
 
 A netlist object's SystemVerilog origin is read on demand from its raw SNL
-`getSourceLoc()` (naja #389/#390, najaeda>=0.7.2) wherever a tool needs it — no
-prebuilt index, no eager netlist walk. This module is just the small `SrcRange`
+`getSourceLoc()` (naja #389/#390) wherever a tool needs it — no prebuilt
+index, no eager netlist walk. This module is just the small `SrcRange`
 value object that carries one `file:start-end` span. (An earlier version walked
 every design at load/snapshot time to build a name-keyed index; that pass was
 removed once `getSourceLoc()` proved cheap and snapshot-stable per object.)

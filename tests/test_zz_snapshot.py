@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Snapshot save + reload (naja-if; SV-snapshot reload fixed in najaeda 0.7.4).
+"""Snapshot save + reload (naja-if).
 Named test_zz_* to run last: it resets the universe, which invalidates the
 session-scoped fixture other files share."""
 

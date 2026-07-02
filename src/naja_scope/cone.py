@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Cone tracing on top of naja's native `SNLLogicalCone` (najaeda 0.7.6+).
+"""Cone tracing on top of naja's native `SNLLogicalCone`.
 
 `SNLLogicalCone(seed_occurrence, FanIn|FanOut)` builds, in C++, the rooted DAG
 of combinational logic between the seed bit and the surrounding sequential /

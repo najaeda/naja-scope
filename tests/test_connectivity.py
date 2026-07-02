@@ -16,8 +16,8 @@ def test_drivers_of_registered_output_is_ff(uart_session):
 
 
 def test_loads_of_clock_hits_limit(uart_session):
-    # Since najaeda 0.7.0 FFs are word-level primitives (naja_dffrn__w8),
-    # so clk has one load per register (5 here), not per bit.
+    # FFs are word-level primitives (naja_dffrn__w8), so clk has one load
+    # per register (5 here), not per bit.
     out = api.get_loads("uart_top.clk", limit=3)
     assert len(out["leaf_loads"]) <= 3
     assert out["truncated"] is True
@@ -35,7 +35,7 @@ def test_equipotential_size_reported(uart_session):
     assert out["equipotential_size"] >= 1
 
 
-# -- trace_cone (SNLLogicalCone-backed; needs najaeda 0.7.6+) -----------------
+# -- trace_cone (SNLLogicalCone-backed) ---------------------------------------
 
 def test_cone_fanin_reaches_ff(uart_session):
     out = api.trace_cone("uart_top.tx_o", "fanin")
@@ -54,8 +54,8 @@ def test_cone_fanin_reaches_ff(uart_session):
 
 
 def test_cone_traverses_logic_gates_no_blackboxes(uart_session):
-    # The 0.7.6 fix gives lowered and/or/not gates combinatorial modeling, so
-    # the cone crosses them instead of stopping at a `blackbox` barrier.
+    # Lowered and/or/not gates get combinatorial modeling, so the cone crosses
+    # them instead of stopping at a `blackbox` barrier.
     out = api.trace_cone("uart_top.u_tx.state_n", "fanin")
     assert out["frontier"]["blackbox_count"] == 0
     assert out["counts_by_kind"].get("blackbox", 0) == 0
