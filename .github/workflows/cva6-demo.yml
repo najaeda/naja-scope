@@ -1,0 +1,43 @@
+name: CVA6 demo
+
+# Runs the naja-scope demo/regression against a real production core (CVA6),
+# cloned fresh at a pinned tag (examples/cva6_demo.sh -> examples/cva6_demo.py).
+# MCP-only, no agent — deterministic, no API cost.
+#
+# Kept off `pull_request` on purpose: it depends on an external clone
+# (github.com/openhwgroup/cva6 + its hpdcache/cvfpu submodules) and takes a
+# few minutes, so it shouldn't gate every contributor's PR feedback loop. It
+# still runs as regression on every push to main, on a weekly schedule (to
+# catch drift if the pinned CVA6 tag or naja-scope's own behavior changes),
+# and on demand.
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: cva6-demo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  demo:
+    name: cva6 demo (regress)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install naja-scope
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run the CVA6 demo (clones CVA6 at a pinned tag, MCP-only, no agent)
+        run: ./examples/cva6_demo.sh

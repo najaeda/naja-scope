@@ -9,6 +9,9 @@ answers it gets back:
 - **Gate-level** — [`stdcells.lib`](stdcells.lib) + [`counter2.v`](counter2.v) +
   [`gate_level.py`](gate_level.py): a post-synthesis structural netlist driven
   by a Liberty cell library (see [below](#gate-level-a-synthesized-netlist)).
+- **CVA6** — [`cva6_demo.sh`](cva6_demo.sh) + [`cva6_demo.py`](cva6_demo.py): the
+  same tour against [CVA6](https://github.com/openhwgroup/cva6), a production
+  RISC-V core, cloned on demand (see [below](#cva6-a-real-production-core)).
 
 ## RTL tour
 
@@ -129,3 +132,48 @@ From your AI assistant, in natural language:
 > *"Load the Liberty library `examples/stdcells.lib`, then the gate netlist
 > `examples/counter2.v`, and tell me what cells it's built from and what drives
 > `q1`."*
+
+## CVA6: a real production core
+
+`uart.sv` and `counter2.v` are tiny on purpose — easy to read end to end. To
+see naja-scope on something that actually needs it, [`cva6_demo.py`](cva6_demo.py)
+runs the same kind of tour against [CVA6](https://github.com/openhwgroup/cva6),
+a production RISC-V core: ~4800 direct children under the top module once
+elaborated, ten real pipeline-stage submodules buried under thousands of
+`assign`-glue instances.
+
+CVA6 is a large third-party repo, so it isn't checked into this repo. Instead
+[`cva6_demo.sh`](cva6_demo.sh) clones it at a pinned tag (only the submodules
+the elaborated config needs — not the full corev_apu/verif/docs submodule
+set) and runs the tour:
+
+```sh
+./examples/cva6_demo.sh
+```
+
+Or point it at a CVA6 checkout you already have:
+
+```sh
+CVA6_REPO_DIR=~/WORK/cva6 ./examples/cva6_demo.sh
+```
+
+It shows:
+
+- **Hierarchy that filters glue, not dumps it** — `get_hierarchy` reports
+  ~4800 `assign` instances as a count and surfaces the 10 real submodules
+  (frontend, id_stage, issue_stage, ex_stage, commit_stage, csr_regfile,
+  perf_counters, controller, the cache subsystem, rvfi probes) in one bounded
+  call.
+- **A driver, three hierarchy levels deep** — `get_drivers` on the serial
+  divider's FSM state register resolves straight to the flip-flop and its
+  `serdiv.sv` source line, no scrolling through the multiplier/divider unit.
+- **A cross-hierarchy fan-in cone** — `trace_cone` on the divider's
+  next-state logic shows its register frontier reaching *outside* the EX
+  stage entirely, into `csr_regfile_i` (the privilege-level register gates
+  the divider) — a fact no textual grep of `serdiv.sv` could ever reveal.
+
+This is the same tour that runs in CI as a regression
+(`.github/workflows/cva6-demo.yml`) — MCP-only, no agent, so it's
+deterministic and free to run. To see an actual *agent* driving the same MCP
+server, run [`cva6_demo_agent.sh`](cva6_demo_agent.sh) instead (defaults to
+Claude Code; pluggable via `AGENT_CMD`) — that one is never run in CI.
