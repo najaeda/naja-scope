@@ -46,3 +46,13 @@ jobs:
         # The CVA6 regressions self-skip without a local snapshot (absent on
         # CI); the fast structural + intent + snapshot suite runs.
         run: pytest -q
+
+      - name: Run the bundled example scripts
+        # Smoke-tests the exact commands examples/README.md documents (not
+        # just the answers pytest pins) -- these are small and self-contained
+        # (no external clone), so they run on every OS/Python combo. The CVA6
+        # demo has its own external-clone dependency and runs in a separate
+        # workflow (cva6-demo.yml), not here.
+        run: |
+          python examples/walkthrough.py
+          python examples/gate_level.py
