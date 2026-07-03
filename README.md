@@ -160,7 +160,10 @@ Once a design is loaded, your assistant can:
 - **Recover design intent** — state-machine names, struct fields, parameter
   expressions lost during elaboration.
 
-A runnable end-to-end walkthrough lives in [`examples/`](examples/).
+A runnable end-to-end walkthrough lives in [`examples/`](examples/), including
+a version that runs against [CVA6](https://github.com/openhwgroup/cva6) (a
+production RISC-V core, cloned on demand — see
+[`examples/cva6_demo.sh`](examples/cva6_demo.sh)).
 
 ---
 

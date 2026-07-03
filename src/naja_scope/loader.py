@@ -15,10 +15,49 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
 from typing import List, Optional
 
 from najaeda import naja
+
+from .errors import SVInternalError, SVSyntaxError, SVUnsupportedError
+
+# najaeda>=0.7.9 (naja-scope's pinned floor) raises these typed exceptions
+# directly from loadSystemVerilog; anything loaded out-of-band below that floor
+# (e.g. via NAJAEDA_SRC pointing at an older checkout) only raises plain
+# RuntimeError. Detect once so classification degrades gracefully instead of
+# hard-depending on the new types.
+_NATIVE_SV_SYNTAX = getattr(naja, "SystemVerilogSyntaxError", None)
+_NATIVE_SV_UNSUPPORTED = getattr(naja, "SystemVerilogUnsupportedError", None)
+_NATIVE_SV_INTERNAL = getattr(naja, "SystemVerilogInternalError", None)
+
+# Fallback heuristics for najaeda builds without the typed exceptions above:
+# naja's own message text already separates these cases (see naja core's
+# SNLSVConstructor.cpp), it just isn't typed yet. Best-effort only -- the
+# wording carries no compatibility guarantee, hence "fallback".
+_UNSUPPORTED_MARKER = "Unsupported SystemVerilog element"
+_DIAGNOSTIC_LOCATION_RE = re.compile(r":\d+:\d+: error:")
+
+
+def _classify_sv_load_error(exc: RuntimeError) -> Exception:
+    """Map a najaeda SystemVerilog load failure onto a ScopeError subclass so
+    the agent (and through it, the end user) can tell "your RTL is invalid"
+    apart from "naja doesn't support this" apart from "this is a naja bug"."""
+    if _NATIVE_SV_SYNTAX is not None and isinstance(exc, _NATIVE_SV_SYNTAX):
+        return SVSyntaxError(str(exc), diagnostics=getattr(exc, "diagnostics", None))
+    if _NATIVE_SV_UNSUPPORTED is not None and isinstance(exc, _NATIVE_SV_UNSUPPORTED):
+        return SVUnsupportedError(
+            str(exc), unsupported_elements=getattr(exc, "unsupported_elements", None))
+    if _NATIVE_SV_INTERNAL is not None and isinstance(exc, _NATIVE_SV_INTERNAL):
+        return SVInternalError(str(exc))
+
+    message = str(exc)
+    if _UNSUPPORTED_MARKER in message:
+        return SVUnsupportedError(message)
+    if _DIAGNOSTIC_LOCATION_RE.search(message) or "compilation failed" in message:
+        return SVSyntaxError(message)
+    return SVInternalError(message)
 
 
 def get_top_db():
@@ -70,6 +109,8 @@ def load_systemverilog(files: List[str], flist: Optional[str] = None,
             # requested.
             keep_ast_link=keep_ast_link,
         )
+    except RuntimeError as e:
+        raise _classify_sv_load_error(e) from e
     finally:
         if temp_flist and os.path.exists(temp_flist):
             os.remove(temp_flist)

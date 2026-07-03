@@ -256,14 +256,14 @@ def child_nodes(node: InstNode) -> Iterator[InstNode]:
 
 def non_assign_instances(design) -> Iterator:
     """A design's direct instances minus the `assign` glue (naja
-    `getNonAssignInstances()`, najaeda>=0.7.6). Leaf primitives are still
-    included — leaf/non-leaf is a separate axis (use `InstNode.is_leaf`)."""
+    `getNonAssignInstances()`). Leaf primitives are still included —
+    leaf/non-leaf is a separate axis (use `InstNode.is_leaf`)."""
     return design.getNonAssignInstances()
 
 
 def assign_instances(design) -> Iterator:
     """A design's `assign` glue instances — the complement of
-    non_assign_instances() (naja `getAssignInstances()`, najaeda>=0.7.6)."""
+    non_assign_instances() (naja `getAssignInstances()`)."""
     return design.getAssignInstances()
 
 
@@ -441,8 +441,8 @@ def occurrence_leaf(occ):
 
     A SNLLogicalCone Internal/Flop/Blackbox node's occurrence references the
     crossed leaf SNLInstance, with getPath() the path to its parent. We read it
-    via SNLOccurrence.getInstance() (najaeda 0.7.6, naja #393 follow-up); on a
-    non-instance occurrence (Root/Ports terms) getInstance() returns None.
+    via SNLOccurrence.getInstance(); on a non-instance occurrence (Root/Ports
+    terms) getInstance() returns None.
     """
     inst = occ.getInstance()
     if inst is None:
