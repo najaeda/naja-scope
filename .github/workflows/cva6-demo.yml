@@ -7,15 +7,11 @@ name: CVA6 demo
 # Kept off `pull_request` on purpose: it depends on an external clone
 # (github.com/openhwgroup/cva6 + its hpdcache/cvfpu submodules) and takes a
 # few minutes, so it shouldn't gate every contributor's PR feedback loop. It
-# still runs as regression on every push to main, on a weekly schedule (to
-# catch drift if the pinned CVA6 tag or naja-scope's own behavior changes),
-# and on demand.
+# still runs as regression on every push to main, and on demand.
 on:
   push:
     branches:
       - main
-  schedule:
-    - cron: "0 6 * * 1"   # weekly, Monday 06:00 UTC
   workflow_dispatch:
 
 concurrency:
