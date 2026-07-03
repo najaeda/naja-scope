@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Cone tracing on top of naja's native `SNLLogicalCone`.
+"""Cone tracing on top of naja's native `LogicCone`.
 
-`SNLLogicalCone(seed_occurrence, FanIn|FanOut)` builds, in C++, the rooted DAG
+`LogicCone(seed_occurrence, FanIn|FanOut)` builds, in C++, the rooted DAG
 of combinational logic between the seed bit and the surrounding sequential /
 port / black-box barriers, crossing hierarchy and following combinatorial arcs
 only. naja-scope no longer hand-rolls the equipotential BFS; it seeds the cone,
@@ -37,8 +37,8 @@ DEFAULT_MAX_FRONTIER = 50
 HARD_MAX_FRONTIER = 200
 
 _DIRECTIONS = {
-    "fanin": naja.SNLLogicalCone.FanIn,
-    "fanout": naja.SNLLogicalCone.FanOut,
+    "fanin": naja.LogicCone.FanIn,
+    "fanout": naja.LogicCone.FanOut,
 }
 # get_leaves() kinds that are barriers, by category.
 _LEAF_KINDS = {"flop", "ports", "blackbox"}
@@ -148,7 +148,7 @@ def trace_cone(resolved: Resolved, session, direction: str,
         occ = snl.seed_occurrence(resolved.kind, resolved.owner, bit)
         if occ is None:
             continue
-        cone = naja.SNLLogicalCone(occ, cone_dir)
+        cone = naja.LogicCone(occ, cone_dir)
         node_count += cone.get_node_count()
         for (_id, _occ, kind, _nx, _pv) in cone.get_nodes():
             counts_by_kind[kind] = counts_by_kind.get(kind, 0) + 1

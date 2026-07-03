@@ -46,12 +46,6 @@ DIV_STATE_Q = "cva6.ex_stage_i.i_mult.i_div.state_q"
 DIV_STATE_D = "cva6.ex_stage_i.i_mult.i_div.state_d"
 NOC_REQ_O = "cva6.noc_req_o"
 
-# A whole-port fan-in cone on a wide top-level output (noc_req_o is 470 bits)
-# is currently slow (multi-minute, measured on najaeda 0.7.9) because the
-# cone is traced bit-by-bit. Kept here, not run by default, pending a najaeda
-# speedup for wide-port cones; opt in with NAJA_SCOPE_DEMO_FULL_PORT_CONE=1.
-RUN_FULL_PORT_CONE = os.environ.get("NAJA_SCOPE_DEMO_FULL_PORT_CONE") == "1"
-
 
 def banner(title):
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
@@ -108,18 +102,14 @@ def main():
 
     banner(f'Q: "What feeds the top-level output {NOC_REQ_O}?" '
            "(whole-port fan-in cone)")
-    if RUN_FULL_PORT_CONE:
-        cone = api.trace_cone(NOC_REQ_O, "fanin")
-        frontier = cone["frontier"]
-        print(f"  nodes in cone     : {cone['node_count']}")
-        print(f"  register frontier : {frontier['flop_count']} flop(s), "
-              f"{frontier['blackbox_count']} black box(es)")
-    else:
-        print("  skipped by default: a whole-port cone on this 470-bit port "
-              "is slow today (multi-minute; the cone is traced bit-by-bit). "
-              "Set NAJA_SCOPE_DEMO_FULL_PORT_CONE=1 to run it anyway once "
-              "you're willing to wait, or after the next najaeda release "
-              "(wide-port cone tracing is getting a speedup).")
+    cone = api.trace_cone(NOC_REQ_O, "fanin")
+    frontier = cone["frontier"]
+    print(f"  nodes in cone     : {cone['node_count']}")
+    print(f"  register frontier : {frontier['flop_count']} flop(s), "
+          f"{frontier['blackbox_count']} black box(es)")
+    assert cone["node_count"] > 100_000, (
+        "expected a large cone spanning most of the core's combinational logic")
+    assert frontier["flop_count"] > 0, "expected a non-trivial register frontier"
 
     print("\nDone. A handful of small, exact calls answered structural, "
           "connectivity and cross-hierarchy questions on a real RISC-V core "

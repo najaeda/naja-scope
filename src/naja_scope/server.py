@@ -145,7 +145,7 @@ def get_loads(path: str, limit: Optional[int] = None) -> dict:
 def trace_cone(path: str, direction: str,
                max_frontier: int = 50) -> dict:
     """Trace the combinational fanin/fanout cone of a term/net via naja's
-    SNLLogicalCone. direction: fanin|fanout. The cone crosses hierarchy and
+    LogicCone. direction: fanin|fanout. The cone crosses hierarchy and
     combinatorial arcs and always stops at flops, top ports, and opaque
     black-box cells. Returns node_count, counts_by_kind, counts_by_model, and a
     `frontier` of {flops, ports, blackboxes} with exact counts and lists capped
