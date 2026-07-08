@@ -75,6 +75,9 @@ def describe(resolved: Resolved, session=None) -> dict:
         out["width"] = snl.obj_width(obj)
         if resolved.bit is not None:
             out["bit"] = resolved.bit
+        role = snl.role_str(_safe(obj.getRole))
+        if role:
+            out["role"] = role
     elif resolved.kind == "net":
         out["width"] = snl.obj_width(obj)
         if resolved.bit is not None:

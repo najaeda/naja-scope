@@ -114,6 +114,23 @@ def direction_str(direction) -> str:
     return str(direction).split(".")[-1].lower()
 
 
+# SNLTermRole values are plain ints (pybind11 class attrs, not a real Python
+# enum), so there's no built-in name lookup -- build one from the class dir().
+_ROLE_NAMES = {
+    getattr(naja.SNLTermRole, name): name
+    for name in dir(naja.SNLTermRole)
+    if not name.startswith("_")
+}
+
+
+def role_str(role) -> Optional[str]:
+    """Primitive pin role name, or None for unset/"Other"/unrecognized."""
+    name = _ROLE_NAMES.get(role)
+    if name is None or name == "Other":
+        return None
+    return name
+
+
 # -- identity & display labels -----------------------------------------------
 #
 # SV lowering leaves primitive instances (FFs, gates) anonymous. Rather than an
