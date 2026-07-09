@@ -118,7 +118,7 @@ def _model_role_facts(model) -> dict:
     etc.), sound (not name-guessed) but only populated for primitives
     elaborated from RTL via slang -- empty for hierarchical models and for
     primitives sourced from yosys/xilinx/liberty (role porting there is
-    upstream WIP as of najaeda 0.7.11)."""
+    upstream WIP as of najaeda 0.7.12)."""
     facts = {}
     try:
         if list(model.getAsyncResetTerms()):
@@ -128,6 +128,16 @@ def _model_role_facts(model) -> dict:
     try:
         if list(model.getAsyncSetTerms()):
             facts["has_async_set"] = True
+    except Exception:
+        pass
+    try:
+        if list(model.getSyncResetTerms()):
+            facts["has_sync_reset"] = True
+    except Exception:
+        pass
+    try:
+        if list(model.getSyncSetTerms()):
+            facts["has_sync_set"] = True
     except Exception:
         pass
     return facts
@@ -141,10 +151,11 @@ def module_card(session: Session, module: str,
       - `module`: the module name.
       - `ports`: per-port name/dir/width (msb/lsb for buses). Hard fact.
       - `counts`: instances, sequential_instances, sequential_with_async_reset,
-        sequential_with_async_set, models, and `by_model` (top `max_models` by
+        sequential_with_async_set, sequential_with_sync_reset,
+        sequential_with_sync_set, models, and `by_model` (top `max_models` by
         count, with `by_model_truncated` if elided). Hard fact --
-        sequential_with_async_* comes from each leaf model's own
-        SNLDesign.getAsyncResetTerms()/getAsyncSetTerms() (sound, primitive
+        sequential_with_(a)sync_* comes from each leaf model's own
+        SNLDesign.get(A)SyncResetTerms()/get(A)SyncSetTerms() (sound, primitive
         pin roles), not name matching. Only populated for primitives
         elaborated from RTL via slang; 0 for gate-level netlists sourced from
         yosys/xilinx/liberty until that role porting lands upstream.
@@ -165,6 +176,8 @@ def module_card(session: Session, module: str,
     sequential = 0
     sequential_with_async_reset = 0
     sequential_with_async_set = 0
+    sequential_with_sync_reset = 0
+    sequential_with_sync_set = 0
     for inst in design.getInstances():
         total += 1
         model = inst.getModel()
@@ -179,6 +192,10 @@ def module_card(session: Session, module: str,
                 sequential_with_async_reset += 1
             if facts.get("has_async_set"):
                 sequential_with_async_set += 1
+            if facts.get("has_sync_reset"):
+                sequential_with_sync_reset += 1
+            if facts.get("has_sync_set"):
+                sequential_with_sync_set += 1
 
     top_models = sorted(by_model.items(), key=lambda kv: -kv[1])
     counts = {
@@ -186,6 +203,8 @@ def module_card(session: Session, module: str,
         "sequential_instances": sequential,
         "sequential_with_async_reset": sequential_with_async_reset,
         "sequential_with_async_set": sequential_with_async_set,
+        "sequential_with_sync_reset": sequential_with_sync_reset,
+        "sequential_with_sync_set": sequential_with_sync_set,
         "models": len(by_model),
         "by_model": dict(top_models[:max_models]),
     }
