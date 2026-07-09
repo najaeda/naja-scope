@@ -113,6 +113,26 @@ def _model_is_sequential(model) -> bool:
         return False
 
 
+def _model_role_facts(model) -> dict:
+    """Primitive pin-role facts for a leaf model (SNLDesign.getClockTerms()
+    etc.), sound (not name-guessed) but only populated for primitives
+    elaborated from RTL via slang -- empty for hierarchical models and for
+    primitives sourced from yosys/xilinx/liberty (role porting there is
+    upstream WIP as of najaeda 0.7.11)."""
+    facts = {}
+    try:
+        if list(model.getAsyncResetTerms()):
+            facts["has_async_reset"] = True
+    except Exception:
+        pass
+    try:
+        if list(model.getAsyncSetTerms()):
+            facts["has_async_set"] = True
+    except Exception:
+        pass
+    return facts
+
+
 def module_card(session: Session, module: str,
                 max_models: int = 12) -> dict:
     """Build the orientation card for `module` (see module docstring).
@@ -120,9 +140,14 @@ def module_card(session: Session, module: str,
     Returns a dict with:
       - `module`: the module name.
       - `ports`: per-port name/dir/width (msb/lsb for buses). Hard fact.
-      - `counts`: instances, sequential_instances, models, and `by_model`
-        (top `max_models` by count, with `by_model_truncated` if elided). Hard
-        fact.
+      - `counts`: instances, sequential_instances, sequential_with_async_reset,
+        sequential_with_async_set, models, and `by_model` (top `max_models` by
+        count, with `by_model_truncated` if elided). Hard fact --
+        sequential_with_async_* comes from each leaf model's own
+        SNLDesign.getAsyncResetTerms()/getAsyncSetTerms() (sound, primitive
+        pin roles), not name matching. Only populated for primitives
+        elaborated from RTL via slang; 0 for gate-level netlists sourced from
+        yosys/xilinx/liberty until that role porting lands upstream.
       - `parameters`: name/value pairs, when present. Hard fact.
       - `src`: the module's source range as `file:start-end`, when known.
       - `clock_candidates` / `reset_candidates` (+ `active_low_guess`):
@@ -135,20 +160,32 @@ def module_card(session: Session, module: str,
     ports = _ports(design)
 
     by_model: Dict[str, int] = {}
+    role_facts_by_model: Dict[str, dict] = {}
     total = 0
     sequential = 0
+    sequential_with_async_reset = 0
+    sequential_with_async_set = 0
     for inst in design.getInstances():
         total += 1
         model = inst.getModel()
         model_name = model.getName()
         by_model[model_name] = by_model.get(model_name, 0) + 1
+        if model_name not in role_facts_by_model:
+            role_facts_by_model[model_name] = _model_role_facts(model)
+        facts = role_facts_by_model[model_name]
         if _model_is_sequential(model):
             sequential += 1
+            if facts.get("has_async_reset"):
+                sequential_with_async_reset += 1
+            if facts.get("has_async_set"):
+                sequential_with_async_set += 1
 
     top_models = sorted(by_model.items(), key=lambda kv: -kv[1])
     counts = {
         "instances": total,
         "sequential_instances": sequential,
+        "sequential_with_async_reset": sequential_with_async_reset,
+        "sequential_with_async_set": sequential_with_async_set,
         "models": len(by_model),
         "by_model": dict(top_models[:max_models]),
     }

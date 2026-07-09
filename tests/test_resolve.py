@@ -26,6 +26,25 @@ def test_resolve_top_term(uart_session):
     m = out["matches"][0]
     assert m["dir"] == "output"
     assert m["width"] == 1
+    # non-primitive (hierarchical module) port: no role, not even "Other".
+    assert "role" not in m
+
+
+def test_resolve_primitive_pin_role(uart_session):
+    """SNLBitTerm.getRole() on a slang-elaborated sequential primitive
+    surfaces as describe()'s `role` field (see snl.role_str). Role is a
+    per-bit fact: scalar pins (C, RN) carry it directly, a multi-bit bus pin
+    (D, Q on a __w2 flop) only carries it bit-selected -- the raw SNLBusTerm
+    has no getRole() of its own, so the bare bus resolves with no role key."""
+    dffs = [m for m in api.find("*", kind="instance", limit=5000)["matches"]
+            if m["model"] == "naja_dffrn__w2"]
+    assert dffs, "expected a naja_dffrn__w2 instance in the UART fixture"
+    path = dffs[0]["path"]
+    assert api.resolve(f"{path}.C")["matches"][0]["role"] == "Clock"
+    assert api.resolve(f"{path}.RN")["matches"][0]["role"] == "AsyncReset"
+    assert api.resolve(f"{path}.D[0]")["matches"][0]["role"] == "DataInput"
+    assert api.resolve(f"{path}.Q[0]")["matches"][0]["role"] == "DataOutput"
+    assert "role" not in api.resolve(f"{path}.D")["matches"][0]
 
 
 def test_resolve_net_bit_select(uart_session):
