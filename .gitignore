@@ -12,7 +12,7 @@ eval/.scratch/
 eval/.cache/
 .venv314/
 sv_constructor_perf.log
+naja_sv_diagnostics.log
 
 # Internal/dev material kept locally but never published.
 internal/
-CLAUDE.md

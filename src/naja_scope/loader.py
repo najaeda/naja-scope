@@ -118,10 +118,13 @@ def load_systemverilog(files: List[str], flist: Optional[str] = None,
 
 def load_verilog(files: List[str], keep_assigns: bool = True,
                  allow_unknown_designs: bool = False):
+    # najaeda>=0.7.11 renamed the raw NLDB.loadVerilog kwarg from
+    # allow_unknown_designs to blackbox_unknown_modules; naja-scope's own
+    # public parameter name is kept stable across that rename.
     get_top_db().loadVerilog(
         files,
         keep_assigns=keep_assigns,
-        allow_unknown_designs=allow_unknown_designs,
+        blackbox_unknown_modules=allow_unknown_designs,
         preprocess_enabled=False,
         conflicting_design_name_policy="forbid",
     )
