@@ -21,13 +21,18 @@ jobs:
   test:
     name: test (${{ matrix.os }}, py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    # 3.15-dev is a forward-looking canary: najaeda has no cp315 wheel yet, so
+    # the install step fails until the next najaeda ships one. allow-failure so
+    # it surfaces readiness without ever blocking CI. Promote to a real matrix
+    # entry (and drop this) once najaeda publishes cp315 wheels.
+    continue-on-error: ${{ matrix.python-version == '3.15-dev' }}
     strategy:
       fail-fast: false
       matrix:
         # Test on the three OSes naja-scope claims to support. najaeda ships
         # wheels for each (macOS arm64, win_amd64, manylinux) on these Pythons.
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15-dev"]
     steps:
       - uses: actions/checkout@v7
 
@@ -35,6 +40,7 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
       - name: Install package + test deps
         run: |
