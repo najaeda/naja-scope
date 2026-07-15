@@ -483,12 +483,22 @@ def get_intent(ref: str, want: str = "auto") -> dict:
 
 # -- escape hatch ---------------------------------------------------------------------
 
+def python_enabled() -> bool:
+    """Whether the query_python escape hatch is turned on (opt-in).
+
+    Off by default: it is unsandboxed eval/exec in the server process, which is
+    a code-execution surface on every install — including `--transport
+    streamable-http`, where it is reachable over a socket. Operators who want it
+    set NAJA_SCOPE_ENABLE_PYTHON."""
+    return bool(os.environ.get("NAJA_SCOPE_ENABLE_PYTHON"))
+
+
 def query_python(code: str) -> dict:
     """Run najaeda/naja query code against the live session (prep hook 3).
     Read-only by convention; output capped."""
-    if os.environ.get("NAJA_SCOPE_DISABLE_PYTHON"):
-        raise ScopeError("query_python is disabled "
-                         "(NAJA_SCOPE_DISABLE_PYTHON is set).")
+    if not python_enabled():
+        raise ScopeError("query_python is disabled by default; set "
+                         "NAJA_SCOPE_ENABLE_PYTHON to enable it.")
     SESSION.require_top()
     buf = io.StringIO()
     # Raw-only escape hatch: `naja` (PySNL bindings), `snl` (naja-scope's raw

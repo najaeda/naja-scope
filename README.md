@@ -167,6 +167,24 @@ production RISC-V core, cloned on demand — see
 
 ---
 
+## The Python escape hatch (off by default)
+
+naja-scope also has a `query_python` tool that runs Python directly against the
+loaded design, for queries the typed tools above cannot express. **It is not
+registered unless you opt in:**
+
+```bash
+NAJA_SCOPE_ENABLE_PYTHON=1 naja-scope-mcp
+```
+
+It is unsandboxed `eval`/`exec` inside the server process — read-only by
+convention, not enforced — so anything that can reach the server can run
+arbitrary Python as the server's user. That matters most under `--transport
+streamable-http`, where the server listens on a socket. Leave it off unless you
+need it and trust every client that can reach the endpoint.
+
+---
+
 ## Requirements
 
 - Python 3.10+

@@ -211,14 +211,18 @@ def load_intent(flist: Optional[str] = None,
     return api.load_intent(flist, files, top)
 
 
-@_tool
-def query_python(code: str) -> dict:
-    """Escape hatch: run Python against the live design ('naja' raw bindings,
-    'snl' raw helpers, 'session', 'top' in scope). Prefer the typed tools above;
-    use this only for queries they cannot express. Unsandboxed eval/exec in the
-    server process — read-only by convention, not enforced; operators can turn it
-    off with NAJA_SCOPE_DISABLE_PYTHON. Output capped."""
-    return api.query_python(code)
+# Opt-in: unsandboxed eval/exec in the server process, so it is not registered
+# unless an operator sets NAJA_SCOPE_ENABLE_PYTHON. Costs no schema tokens when off.
+if api.python_enabled():
+
+    @_tool
+    def query_python(code: str) -> dict:
+        """Escape hatch: run Python against the live design ('naja' raw bindings,
+        'snl' raw helpers, 'session', 'top' in scope). Prefer the typed tools
+        above; use this only for queries they cannot express. Unsandboxed
+        eval/exec in the server process — read-only by convention, not enforced.
+        Output capped."""
+        return api.query_python(code)
 
 
 def main():

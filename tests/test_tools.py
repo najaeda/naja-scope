@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Cards, find/pagination, hierarchy, stats, status, query_python."""
 
+import pytest
+
 from naja_scope import api
+from naja_scope.errors import ScopeError
 
 
 def test_module_card(uart_session):
@@ -93,7 +96,12 @@ def test_status(uart_session):
     assert out["top"]["model"] == "uart_top"
 
 
-def test_query_python(uart_session):
+@pytest.fixture
+def python_enabled(monkeypatch):
+    monkeypatch.setenv("NAJA_SCOPE_ENABLE_PYTHON", "1")
+
+
+def test_query_python(uart_session, python_enabled):
     # Raw-only escape hatch: naja / snl / session / top in scope, no netlist.
     out = api.query_python("top.model_name")
     assert out["result"] == "'uart_top'"
@@ -101,6 +109,12 @@ def test_query_python(uart_session):
     assert out["result"] == "'uart_top'"
 
 
-def test_query_python_error_reported(uart_session):
+def test_query_python_error_reported(uart_session, python_enabled):
     out = api.query_python("nonexistent_fn()")
     assert "error" in out
+
+
+def test_query_python_off_by_default(uart_session, monkeypatch):
+    monkeypatch.delenv("NAJA_SCOPE_ENABLE_PYTHON", raising=False)
+    with pytest.raises(ScopeError, match="NAJA_SCOPE_ENABLE_PYTHON"):
+        api.query_python("top.model_name")

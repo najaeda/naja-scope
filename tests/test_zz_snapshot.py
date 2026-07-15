@@ -151,7 +151,11 @@ def test_server_tools_registered():
         "load_primitives", "save_snapshot", "load_snapshot",
         "reset_universe", "resolve", "find", "get_hierarchy",
         "get_drivers", "get_loads", "trace_cone", "get_source",
-        "get_module_card", "get_stats", "query_python",
+        "get_module_card", "get_stats",
         "get_intent", "load_intent",
     }
     assert expected <= names, expected - names
+    # query_python is opt-in (NAJA_SCOPE_ENABLE_PYTHON) and registered at import
+    # time, so its presence here just tracks the ambient env.
+    assert ("query_python" in names) == bool(
+        os.environ.get("NAJA_SCOPE_ENABLE_PYTHON"))
