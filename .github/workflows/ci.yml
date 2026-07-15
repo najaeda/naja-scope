@@ -26,8 +26,9 @@ jobs:
       matrix:
         # Test on the three OSes naja-scope claims to support. najaeda ships
         # wheels for each (macOS arm64, win_amd64, manylinux) on these Pythons.
+        # 3.15 is still a prerelease, hence -dev + allow-prereleases below.
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15-dev"]
     steps:
       - uses: actions/checkout@v7
 
@@ -35,11 +36,12 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
 
       - name: Install package + test deps
         run: |
           python -m pip install --upgrade pip
-          # pulls najaeda>=0.7.8 (the in-engine intent link) and mcp from PyPI
+          # pulls najaeda>=0.7.14 (ships cp310..cp315 wheels) and mcp from PyPI
           pip install -e . pytest
 
       - name: Run tests

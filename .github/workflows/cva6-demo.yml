@@ -4,19 +4,20 @@ name: CVA6 demo
 # cloned fresh at a pinned tag (examples/cva6_demo.sh -> examples/cva6_demo.py).
 # MCP-only, no agent — deterministic, no API cost.
 #
-# Kept off `pull_request` on purpose: it depends on an external clone
+# Runs on PRs as well as pushes to main: it depends on an external clone
 # (github.com/openhwgroup/cva6 + its hpdcache/cvfpu submodules) and takes a
-# few minutes, so it shouldn't gate every contributor's PR feedback loop. It
-# still runs as regression on every push to main, and on demand.
+# few minutes, so it is slower than the rest of CI, but catching a real-core
+# regression before merge is worth the wait.
 on:
   push:
     branches:
       - main
+  pull_request:
   workflow_dispatch:
 
 concurrency:
-  group: cva6-demo-${{ github.ref }}
-  cancel-in-progress: true
+  group: cva6-demo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   demo:
