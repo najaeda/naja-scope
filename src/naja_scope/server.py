@@ -60,7 +60,10 @@ def load_systemverilog(files: Optional[List[str]] = None,
 @_tool
 def load_verilog(files: List[str], keep_assigns: bool = True,
                  allow_unknown_designs: bool = False) -> dict:
-    """Load gate-level/structural Verilog netlists."""
+    """Load gate-level/structural Verilog netlists. Pair with load_liberty (or
+    load_primitives) so cells resolve to real models; allow_unknown_designs=True
+    blackboxes any module still undefined instead of failing. Gate netlists carry
+    no source info, so get_source/get_intent cannot answer for them."""
     return api.load_verilog(files, keep_assigns, allow_unknown_designs)
 
 
@@ -80,7 +83,8 @@ def load_primitives(name: Optional[str] = None,
 
 @_tool
 def save_snapshot(directory: str) -> dict:
-    """Persist the design + source index for fast reload (naja-if + sidecar)."""
+    """Persist the design + source index for fast reload (naja-if + sidecar).
+    Tied to the producing najaeda version — load_snapshot rejects a foreign one."""
     return api.save_snapshot(directory)
 
 
@@ -130,14 +134,18 @@ def get_hierarchy(path: Optional[str] = None, depth: int = 1,
 
 @_tool
 def get_drivers(path: str, limit: Optional[int] = None) -> dict:
-    """What drives this term/net: leaf drivers (FF/gate instances with pin,
-    model, source ref) and top-level ports, through the equipotential."""
+    """What drives this term/net, through the equipotential: leaf drivers
+    (FF/gate instances with pin, model, source ref) and top-level ports.
+    Capped at limit (default 50, max 200) with a `truncated` flag; no cursor —
+    raise limit to see more."""
     return api.get_drivers(path, limit)
 
 
 @_tool
 def get_loads(path: str, limit: Optional[int] = None) -> dict:
-    """What this term/net feeds: leaf readers and top-level ports."""
+    """What this term/net feeds, through the equipotential: leaf readers
+    (instances with pin, model, source ref) and top-level ports. Mirror of
+    get_drivers; same limit/`truncated` capping."""
     return api.get_loads(path, limit)
 
 
@@ -166,7 +174,8 @@ def get_source(path: str, context_lines: int = 3) -> dict:
 @_tool
 def get_module_card(module: str) -> dict:
     """Deterministic module summary: ports, instance counts by model,
-    sequential count, clock/reset candidates (heuristic), source ref."""
+    sequential count, source ref, plus clock/reset candidates — a name-based
+    regex guess, not a structural result; verify before relying on it."""
     return api.get_module_card(module)
 
 
@@ -205,8 +214,10 @@ def load_intent(flist: Optional[str] = None,
 @_tool
 def query_python(code: str) -> dict:
     """Escape hatch: run Python against the live design ('naja' raw bindings,
-    'snl' raw helpers, 'session', 'top' in scope). Read-only by convention;
-    output capped."""
+    'snl' raw helpers, 'session', 'top' in scope). Prefer the typed tools above;
+    use this only for queries they cannot express. Unsandboxed eval/exec in the
+    server process — read-only by convention, not enforced; operators can turn it
+    off with NAJA_SCOPE_DISABLE_PYTHON. Output capped."""
     return api.query_python(code)
 
 
