@@ -4,7 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/naja-scope.svg)](https://pypi.org/project/naja-scope/)
 [![CI](https://github.com/najaeda/naja-scope/actions/workflows/ci.yml/badge.svg)](https://github.com/najaeda/naja-scope/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Glama quality](https://glama.ai/mcp/servers/hnl5j1l7z4/badge)](https://glama.ai/mcp/servers/@najaeda/naja-scope)
+[<img src="https://glama.ai/mcp/servers/hnl5j1l7z4/badge" alt="Glama quality" height="20">](https://glama.ai/mcp/servers/@najaeda/naja-scope)
 
 **Let your AI assistant explore SystemVerilog designs — without pasting source code into the chat.**
 
