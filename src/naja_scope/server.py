@@ -144,8 +144,9 @@ def get_drivers(path: str, limit: Optional[int] = None) -> dict:
 @_tool
 def get_loads(path: str, limit: Optional[int] = None) -> dict:
     """What this term/net feeds, through the equipotential: leaf readers
-    (instances with pin, model, source ref) and top-level ports. Mirror of
-    get_drivers; same limit/`truncated` capping."""
+    (instances with pin, model, source ref) and top-level ports.
+    Capped at limit (default 50, max 200) with a `truncated` flag; no cursor —
+    raise limit to see more."""
     return api.get_loads(path, limit)
 
 
@@ -167,7 +168,8 @@ def trace_cone(path: str, direction: str,
 @_tool
 def get_source(path: str, context_lines: int = 3) -> dict:
     """SystemVerilog source lines that produced an object (FF instance ->
-    its always_ff block). Returns file, range, text."""
+    its always_ff block). Returns file, range, text. Gate-level netlists carry
+    no source info, so get_source cannot answer for them."""
     return api.get_source(path, context_lines)
 
 
