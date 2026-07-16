@@ -16,3 +16,4 @@ naja_sv_diagnostics.log
 
 # Internal/dev material kept locally but never published.
 internal/
+*.swp
