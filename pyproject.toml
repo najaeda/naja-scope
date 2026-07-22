@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "naja-scope"
-version = "0.1.8"
+version = "0.1.9"
 description = "Agent-facing MCP query layer over najaeda: navigate elaborated SystemVerilog designs without loading source into context."
 readme = "README_PyPI.md"
 license = "Apache-2.0"
@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
-    "najaeda>=0.7.14",
+    "najaeda>=0.7.15",
     "mcp>=1.2",
 ]
 
