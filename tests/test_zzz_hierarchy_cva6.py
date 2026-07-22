@@ -38,7 +38,12 @@ _STABLE_SUBMODULES = {
 @pytest.fixture(scope="module")
 def cva6_session():
     api.SESSION.reset()
-    api.load_snapshot(_SNAP)
+    try:
+        api.load_snapshot(_SNAP)
+    except RuntimeError as exc:
+        if "Incompatible SNL snapshot producer" in str(exc):
+            pytest.skip(f"cva6-small snapshot is stale: {exc}")
+        raise
     yield api.SESSION
     api.SESSION.reset()
 

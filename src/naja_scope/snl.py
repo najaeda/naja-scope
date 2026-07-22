@@ -33,6 +33,18 @@ from najaeda import naja
 DIR_INPUT = naja.SNLTerm.Direction.Input
 DIR_OUTPUT = naja.SNLTerm.Direction.Output
 
+# Literal assignments are represented by naja as assign primitives whose
+# input is connected to a typed anonymous net.  AssignX/AssignZ complete the
+# four-state set in najaeda 0.7.17; supply nets carry the same driven values.
+_NET_CONSTANT_VALUES = {
+    naja.SNLNet.Type.Assign0: "0",
+    naja.SNLNet.Type.Assign1: "1",
+    naja.SNLNet.Type.AssignX: "X",
+    naja.SNLNet.Type.AssignZ: "Z",
+    naja.SNLNet.Type.Supply0: "0",
+    naja.SNLNet.Type.Supply1: "1",
+}
+
 _BUS_TYPES = {"SNLBusTerm", "SNLBusNet"}
 
 
@@ -362,6 +374,37 @@ def term_bit(term, index: int):
         for b in term.getBits():
             if b.getBit() == index:
                 return b
+    except Exception:
+        return None
+    return None
+
+
+def net_constant_value(net) -> Optional[str]:
+    """Four-state value carried by a constant/supply bit-net, if any."""
+    if net is None or not hasattr(net, "getType"):
+        return None
+    try:
+        return _NET_CONSTANT_VALUES.get(net.getType())
+    except Exception:
+        return None
+
+
+def assign_constant_value(inst_term) -> Optional[str]:
+    """Literal value driving an assign primitive's output inst-term.
+
+    Slang lowering creates one scalar assign instance per driven bit.  Its
+    anonymous input net is typed Assign0/Assign1/AssignX/AssignZ, so inspecting
+    that input preserves four-state literals without reading source text.
+    """
+    try:
+        inst = inst_term.getInstance()
+        if not inst.getModel().isAssign():
+            return None
+        for peer in inst.getInstTerms():
+            if peer.getDirection() == DIR_INPUT:
+                value = net_constant_value(peer.getNet())
+                if value is not None:
+                    return value
     except Exception:
         return None
     return None

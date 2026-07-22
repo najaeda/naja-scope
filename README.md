@@ -154,7 +154,8 @@ Once a design is loaded, your assistant can:
   did-you-mean suggestions).
 - **Find** objects design-wide by pattern.
 - **Show the hierarchy** of any module.
-- **Get drivers / loads** of a net — the real endpoints, across hierarchy.
+- **Get drivers / loads** of a net — the real endpoints, across hierarchy;
+  literal drivers preserve four-state `0` / `1` / `X` / `Z` values.
 - **Trace logic cones** (fan-in / fan-out) and see the register frontier.
 - **Get source** — the exact SystemVerilog lines behind any object.
 - **Get a module card** — ports, counts, clock/reset at a glance.
