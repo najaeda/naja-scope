@@ -28,7 +28,7 @@ def _bits_of(resolved: Resolved) -> List:
         "term or net (e.g. a port of it).")
 
 
-def _leaf_entry(inst_term, id_list) -> dict:
+def _leaf_entry(inst_term, id_list, queried_bit=None) -> dict:
     inst = inst_term.getInstance()
     model = inst.getModel()
     entry = {
@@ -41,6 +41,11 @@ def _leaf_entry(inst_term, id_list) -> dict:
         entry["is_sequential"] = model.isSequential()
     except Exception:
         pass
+    constant = snl.assign_constant_value(inst_term)
+    if constant is not None:
+        entry["constant"] = constant
+    if queried_bit is not None:
+        entry["bit"] = queried_bit
     loc = snl.source_loc(inst)
     if loc:
         entry["src"] = SrcRange.from_loc(loc).to_ref()
@@ -71,6 +76,12 @@ def endpoints(resolved: Resolved, session, want: str, limit: int) -> dict:
     eq_size = None
     truncated = False
     for bit in bits:
+        queried_bit = None
+        if type(bit).__name__ in ("SNLBusNetBit", "SNLBusTermBit"):
+            try:
+                queried_bit = bit.getBit()
+            except Exception:
+                pass
         eq = snl.build_equipotential(resolved.kind, resolved.owner, bit)
         if eq is None:
             continue
@@ -85,7 +96,7 @@ def endpoints(resolved: Resolved, session, want: str, limit: int) -> dict:
                 continue
             ids = list(occ.getPath().getInstanceIDs())
             ids.append(inst.getID())
-            entry = _leaf_entry(it, ids)
+            entry = _leaf_entry(it, ids, queried_bit)
             key = (entry["path"], entry["pin"])
             if key in seen:
                 continue

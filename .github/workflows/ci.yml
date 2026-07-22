@@ -41,7 +41,7 @@ jobs:
       - name: Install package + test deps
         run: |
           python -m pip install --upgrade pip
-          # pulls najaeda>=0.7.14 (ships cp310..cp315 wheels) and mcp from PyPI
+          # pulls najaeda>=0.7.17 (ships cp310..cp315 wheels) and mcp from PyPI
           pip install -e . pytest
 
       - name: Run tests

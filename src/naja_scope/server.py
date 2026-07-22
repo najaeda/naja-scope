@@ -136,6 +136,8 @@ def get_hierarchy(path: Optional[str] = None, depth: int = 1,
 def get_drivers(path: str, limit: Optional[int] = None) -> dict:
     """What drives this term/net, through the equipotential: leaf drivers
     (FF/gate instances with pin, model, source ref) and top-level ports.
+    Literal assign drivers include `constant` (0, 1, X, or Z); bus entries
+    include the driven `bit`.
     Capped at limit (default 50, max 200) with a `truncated` flag; no cursor —
     raise limit to see more."""
     return api.get_drivers(path, limit)
