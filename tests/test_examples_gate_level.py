@@ -68,8 +68,11 @@ def test_gate_level_drivers_of_output(gate_session):
 
 def test_gate_level_fanin_cone_stops_at_flops(gate_session):
     # q1_next = q1 ^ q0, so the fan-in of the q1 flop's D reaches both flops.
-    # They are opaque library cells, so the cone stops at them as its cell
-    # (black-box) frontier.
+    # stdcells.lib's DFF carries a ff() group (clocked_on/next_state), which
+    # najaeda's Liberty constructor resolves into sequential pin roles
+    # (najaeda>=0.7.19), so the native cone classifies both as flops rather
+    # than opaque black boxes.
     cone = api.trace_cone("counter2.u_ff1.D", "fanin")
-    stopped = {b["path"] for b in cone["frontier"]["blackboxes"]}
+    stopped = {f["path"] for f in cone["frontier"]["flops"]}
     assert stopped == {"counter2.u_ff0", "counter2.u_ff1"}
+    assert cone["frontier"]["blackboxes"] == []
