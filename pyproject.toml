@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "najaeda>=0.7.19",
-    "mcp>=1.2",
+    "mcp>=1.2,<2",
 ]
 
 [project.urls]
