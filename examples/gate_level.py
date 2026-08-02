@@ -54,9 +54,10 @@ def main():
     fr = cone["frontier"]
     print(f"  nodes in cone     : {cone['node_count']}")
     print(f"  by kind           : {cone['counts_by_kind']}")
-    # The DFFs are opaque library cells, so the cone stops at them — they form
-    # the cell (black-box) frontier rather than a lowered-flop frontier.
-    print(f"  stops at cells    : {[b['path'] for b in fr['blackboxes']]}")
+    # stdcells.lib's DFF carries a ff() group, which najaeda's Liberty
+    # constructor resolves into sequential pin roles, so the cone stops at
+    # the DFFs as flops rather than opaque black-box cells.
+    print(f"  stops at flops    : {[f['path'] for f in fr['flops']]}")
 
     print("\nDone. Same navigation as RTL — on a synthesized gate netlist.")
 
