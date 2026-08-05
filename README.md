@@ -60,15 +60,6 @@ source tree.
 More correct answers, fewer back-and-forth turns, and **~5× fewer tokens** — the
 agent stops scrolling through files and goes straight to the structural answer.
 
-It also scales to a real multi-vendor SoC: on
-[CORE-V-MCU](https://github.com/openhwgroup/core-v-mcu) (OpenHW Group's RISC-V
-microcontroller — ~370 SystemVerilog files, a dozen vendored IP trees, 12
-undelivered hard macros), naja-scope loads the raw sources directly — no
-verilator pre-flattening — in ~10s, and one `get_loads` call on a clock pin
-buried six hierarchy levels deep in the eFPGA subsystem resolves a
-1,563-connection clock net spanning most of the chip, something no grep across
-those files could assemble (see [`examples/`](examples/#core-v-mcu-a-multi-vendor-soc)).
-
 ---
 
 ## Install
