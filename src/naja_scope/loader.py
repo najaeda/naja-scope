@@ -79,7 +79,9 @@ def reset_universe():
 
 def load_systemverilog(files: List[str], flist: Optional[str] = None,
                        top: Optional[str] = None, keep_assigns: bool = True,
-                       keep_ast_link: bool = False):
+                       keep_ast_link: bool = False,
+                       defines: Optional[List[str]] = None,
+                       allow_unknown_designs: bool = False):
     db = get_top_db()
     effective_flist = flist
     temp_flist = None
@@ -103,11 +105,16 @@ def load_systemverilog(files: List[str], flist: Optional[str] = None,
             include_source_info_in_elaborated_ast_json=True,
             flist=effective_flist,
             suppress_warnings=None,
+            defines=defines,
             # Retain the live slang Compilation + SNL<->slang bimap for the
             # intent layer (naja.intent_*). Off by default (the Compilation is
             # GB-class on large designs); enabled only when the intent layer is
             # requested.
             keep_ast_link=keep_ast_link,
+            # Mirrors load_verilog's allow_unknown_designs naming; the raw
+            # kwarg on both loadVerilog and loadSystemVerilog is
+            # blackbox_unknown_modules (see the loadVerilog comment above).
+            blackbox_unknown_modules=allow_unknown_designs,
         )
     except RuntimeError as e:
         raise _classify_sv_load_error(e) from e

@@ -96,7 +96,9 @@ def load_systemverilog(files: Optional[List[str]] = None,
                        flist: Optional[str] = None,
                        top: Optional[str] = None,
                        keep_assigns: bool = True,
-                       intent: bool = False) -> dict:
+                       intent: bool = False,
+                       defines: Optional[List[str]] = None,
+                       allow_unknown_designs: bool = False) -> dict:
     # Warm load: retain the slang AST link inline (keep_ast_link) when intent is
     # requested — no separate elaboration step. Off by default (the Compilation
     # is GB-class on large designs).
@@ -104,7 +106,9 @@ def load_systemverilog(files: Optional[List[str]] = None,
     top_instance = SESSION.load_systemverilog(files or [], flist=flist,
                                               top=top,
                                               keep_assigns=keep_assigns,
-                                              keep_ast_link=want)
+                                              keep_ast_link=want,
+                                              defines=defines,
+                                              allow_unknown_designs=allow_unknown_designs)
     out = {"top": _summary(top_instance)}
     if want:
         out["intent_loaded"] = SESSION.intent_available

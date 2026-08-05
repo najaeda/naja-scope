@@ -12,6 +12,12 @@ answers it gets back:
 - **CVA6** — [`cva6_demo.sh`](cva6_demo.sh) + [`cva6_demo.py`](cva6_demo.py): the
   same tour against [CVA6](https://github.com/openhwgroup/cva6), a production
   RISC-V core, cloned on demand (see [below](#cva6-a-real-production-core)).
+- **CORE-V-MCU** — [`core_v_mcu_demo.sh`](core_v_mcu_demo.sh) +
+  [`core_v_mcu_demo.py`](core_v_mcu_demo.py): the same tour against
+  [CORE-V-MCU](https://github.com/openhwgroup/core-v-mcu), OpenHW Group's
+  RISC-V microcontroller — a multi-vendor SoC with FuseSoC-managed sources and
+  undelivered hard macros, cloned and resolved on demand (see
+  [below](#core-v-mcu-a-multi-vendor-soc)).
 
 ## RTL tour
 
@@ -179,4 +185,58 @@ This is the same tour that runs in CI as a regression
 (`.github/workflows/cva6-demo.yml`) — MCP-only, no agent, so it's
 deterministic and free to run. To see an actual *agent* driving the same MCP
 server, run [`cva6_demo_agent.sh`](cva6_demo_agent.sh) instead (defaults to
+Claude Code; pluggable via `AGENT_CMD`) — that one is never run in CI.
+
+## CORE-V-MCU: a multi-vendor SoC
+
+CVA6 is one production core; [`core_v_mcu_demo.py`](core_v_mcu_demo.py) goes a
+step further with [CORE-V-MCU](https://github.com/openhwgroup/core-v-mcu),
+OpenHW Group's RISC-V microcontroller — a full SoC assembled from a dozen
+vendored IP trees (`cv32e40p`, PULP-platform AXI/TCDM, an eFPGA fabric) under
+FuseSoC, plus 12 technology hard macros (SRAMs, a PLL, clock-gate cells, the
+eFPGA fabric itself) that the open-source build intentionally leaves
+undelivered.
+
+CORE-V-MCU's sources aren't a flat file list — FuseSoC resolves the vendored
+IP tree, include paths, and defines. [`core_v_mcu_demo.sh`](core_v_mcu_demo.sh)
+clones the repo at a pinned commit, runs `fusesoc --setup` (file-list
+resolution only, no simulator build — `fusesoc` itself gets installed into a
+throwaway venv, nothing to set up by hand), normalizes that file list into
+something naja-scope's SystemVerilog frontend reads directly, and loads it
+with `allow_unknown_designs=True` so the 12 hard macros become blackboxes
+instead of failing the load:
+
+```sh
+./examples/core_v_mcu_demo.sh
+```
+
+Or point it at a checkout you already have:
+
+```sh
+CORE_V_MCU_REPO_DIR=~/WORK/core-v-mcu ./examples/core_v_mcu_demo.sh
+```
+
+It loads directly from the raw multi-file SystemVerilog — no verilator
+pre-flattening step — in about 10 seconds, and shows:
+
+- **The blackbox set, exactly** — the 12 undelivered hard macros
+  (`QL_eFPGA_ArcticPro2_32X32_GF_22_Arnold2`, `apb_pll`, `sram512x64`, the
+  clock-gate/mux/inverter cells, ...) resolve as `AutoBlackBox` models instead
+  of failing the load — matching naja core's own `core_v_mcu` regression case
+  reference list exactly.
+- **Design scale** — 722,402 flattened leaf gates, 97,376 flip-flops, 320
+  distinct elaborated module variants, in one `get_stats` call.
+- **A clock net traced through renamed ports** — a `pulp_sync_wedge` CDC
+  synchronizer buried six levels deep in the eFPGA subsystem has a `clk_i`
+  pin; `get_loads` resolves the electrical net it sits on (not a text match)
+  across every hierarchy boundary it crosses — the pin is called `clk_i` here,
+  `clk` there, `sys_clk_i` three levels up — and finds it's the SoC's
+  distributed system clock: 1,563 connections spanning timers, µDMA, L2
+  memory, the eFPGA subsystem, and the PLL macro itself. No grep across ~370
+  files could assemble that, because there's no single string to search for.
+
+This is the same tour that runs in CI as a regression
+(`.github/workflows/core-v-mcu-demo.yml`) — MCP-only, no agent. To see an
+actual *agent* driving the same MCP server, run
+[`core_v_mcu_demo_agent.sh`](core_v_mcu_demo_agent.sh) instead (defaults to
 Claude Code; pluggable via `AGENT_CMD`) — that one is never run in CI.

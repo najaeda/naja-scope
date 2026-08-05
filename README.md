@@ -163,9 +163,11 @@ Once a design is loaded, your assistant can:
   expressions lost during elaboration.
 
 A runnable end-to-end walkthrough lives in [`examples/`](examples/), including
-a version that runs against [CVA6](https://github.com/openhwgroup/cva6) (a
+versions that run against [CVA6](https://github.com/openhwgroup/cva6) (a
 production RISC-V core, cloned on demand — see
-[`examples/cva6_demo.sh`](examples/cva6_demo.sh)).
+[`examples/cva6_demo.sh`](examples/cva6_demo.sh)) and
+[CORE-V-MCU](https://github.com/openhwgroup/core-v-mcu) (a full multi-vendor
+RISC-V SoC — see [`examples/core_v_mcu_demo.sh`](examples/core_v_mcu_demo.sh)).
 
 ---
 
