@@ -50,11 +50,17 @@ def load_systemverilog(files: Optional[List[str]] = None,
                        flist: Optional[str] = None,
                        top: Optional[str] = None,
                        keep_assigns: bool = True,
-                       intent: bool = False) -> dict:
+                       intent: bool = False,
+                       defines: Optional[List[str]] = None,
+                       allow_unknown_designs: bool = False) -> dict:
     """Elaborate SystemVerilog (files and/or an flist; optional top module).
-    Anonymous lowered objects are addressable by #<id>.
-    intent=True retains naja's in-engine SNL↔slang link for get_intent."""
-    return api.load_systemverilog(files, flist, top, keep_assigns, intent)
+    Anonymous lowered objects are addressable by #<id>. defines are
+    preprocessor -D entries ("NAME" or "NAME=VALUE"). allow_unknown_designs=True
+    blackboxes any module still undefined instead of failing (e.g. undelivered
+    hard macros in a partly-open-source design). intent=True retains naja's
+    in-engine SNL↔slang link for get_intent."""
+    return api.load_systemverilog(files, flist, top, keep_assigns, intent,
+                                  defines, allow_unknown_designs)
 
 
 @_tool

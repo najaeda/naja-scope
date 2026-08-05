@@ -66,15 +66,20 @@ class Session:
     def load_systemverilog(self, files: List[str], flist: Optional[str] = None,
                            top: Optional[str] = None,
                            keep_assigns: bool = True,
-                           keep_ast_link: bool = False) -> "snl.InstNode":
+                           keep_ast_link: bool = False,
+                           defines: Optional[List[str]] = None,
+                           allow_unknown_designs: bool = False) -> "snl.InstNode":
         loader.load_systemverilog(files, flist=flist, top=top,
                                   keep_assigns=keep_assigns,
-                                  keep_ast_link=keep_ast_link)
+                                  keep_ast_link=keep_ast_link,
+                                  defines=defines,
+                                  allow_unknown_designs=allow_unknown_designs)
         self._record_sources(files)
         if flist:
             self._record_sources([flist])
         self.load_spec = {"files": list(files or []), "flist": flist,
-                          "top": top}
+                          "top": top, "defines": defines,
+                          "allow_unknown_designs": allow_unknown_designs}
         return snl.top_node()
 
     def load_verilog(self, files: List[str], keep_assigns: bool = True,
@@ -107,6 +112,8 @@ class Session:
         files = files if files is not None else spec.get("files")
         flist = flist if flist is not None else spec.get("flist")
         top = top if top is not None else spec.get("top")
+        defines = spec.get("defines")
+        allow_unknown_designs = spec.get("allow_unknown_designs", False)
         if not files and not flist:
             raise ScopeError(
                 "load_intent needs a flist or files to elaborate the intent "
@@ -119,7 +126,8 @@ class Session:
         loader.reset_universe()
         self.__init__()
         self.load_systemverilog(files or [], flist=flist, top=top,
-                                keep_ast_link=True)
+                                keep_ast_link=True, defines=defines,
+                                allow_unknown_designs=allow_unknown_designs)
         return self.intent
 
     @property
