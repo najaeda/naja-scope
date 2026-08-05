@@ -1,0 +1,42 @@
+name: CORE-V-MCU demo
+
+# Runs the naja-scope demo/regression against a real multi-vendor SoC
+# (CORE-V-MCU), cloned fresh at a pinned commit
+# (examples/core_v_mcu_demo.sh -> examples/core_v_mcu_demo.py). MCP-only, no
+# agent — deterministic, no API cost.
+#
+# Runs on PRs as well as pushes to main: it depends on an external clone
+# (github.com/openhwgroup/core-v-mcu) and fusesoc file-list resolution (setup
+# only, no simulator build — no verilator binary required), and takes a few
+# minutes, so it is slower than the rest of CI, but catching a real-SoC
+# regression before merge is worth the wait.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: core-v-mcu-demo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  demo:
+    name: core-v-mcu demo (regress)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install naja-scope
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run the CORE-V-MCU demo (clones it, resolves the file list via fusesoc, MCP-only, no agent)
+        run: ./examples/core_v_mcu_demo.sh
