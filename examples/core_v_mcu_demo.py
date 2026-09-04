@@ -114,7 +114,9 @@ def main():
     print(f"  sample of what shares this net (first {len(loads['leaf_loads'])}):")
     for model, n in sorted(by_model.items(), key=lambda kv: -kv[1]):
         print(f"    - {model}: {n}")
-    assert loads["equipotential_size"] == 1563, (
+    # TraverseAssigns crosses lowered assign glue, exposing the full set of
+    # meaningful endpoints on this clock network.
+    assert loads["equipotential_size"] == 1635, (
         "clock net fan-out drifted -- re-check the CDC instance path above")
 
     print("\nDone. A handful of small, exact calls answered structural, "
