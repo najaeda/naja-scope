@@ -2,6 +2,28 @@
 """Drivers/loads/cone: the resolve -> get_drivers -> get_source workflow."""
 
 from naja_scope import api
+from naja_scope.session import SESSION
+
+
+def test_assign_glue_is_transparent(tmp_path):
+    source = tmp_path / "assign_chain.v"
+    source.write_text(
+        "module assign_chain(input i, output o);\n"
+        "  wire n;\n"
+        "  assign n = i;\n"
+        "  assign o = n;\n"
+        "endmodule\n"
+    )
+    SESSION.reset()
+    SESSION.load_verilog([str(source)])
+
+    drivers = api.get_drivers("assign_chain.o")
+    assert drivers["leaf_drivers"] == []
+    assert drivers["top_drivers"] == [{"port": "assign_chain.i", "dir": "input"}]
+
+    loads = api.get_loads("assign_chain.i")
+    assert loads["leaf_loads"] == []
+    assert loads["top_loads"] == [{"port": "assign_chain.o", "dir": "output"}]
 
 
 def test_drivers_of_registered_output_is_ff(uart_session):

@@ -412,30 +412,58 @@ def assign_constant_value(inst_term) -> Optional[str]:
 
 # -- equipotentials ----------------------------------------------------------
 
-def build_equipotential(kind: str, owner: InstNode, bit_obj):
-    """Raw SNLEquipotential for a bit-level term or net in `owner`'s scope."""
+def build_equipotential(kind: str, owner: InstNode, bit_obj,
+                        traverse_assigns: bool = True):
+    """Raw SNLEquipotential for a bit-level term or net in ``owner``'s scope.
+
+    Connectivity queries treat lowered assign primitives as transparent glue.
+    Callers that need the adjacent assign occurrence itself (notably constant
+    driver rendering) can request the standard, non-traversing mode.
+    """
+    mode = (naja.SNLEquipotential.Mode.TraverseAssigns
+            if traverse_assigns else naja.SNLEquipotential.Mode.Standard)
+
+    def equipotential(component):
+        return naja.SNLEquipotential(component, mode=mode)
+
     try:
         if kind == "term":
             if owner.is_top:
-                return naja.SNLEquipotential(bit_obj)
+                return equipotential(bit_obj)
             inst_term = owner.snl_instance.getInstTerm(bit_obj)
             occ = naja.SNLOccurrence(owner.snlpath.getHeadPath(), inst_term)
-            return naja.SNLEquipotential(occ)
+            return equipotential(occ)
         # net bit: reach the equipotential through a connected component.
         inst_terms = list(bit_obj.getInstTerms())
         if inst_terms:
             occ = naja.SNLOccurrence(owner.snlpath, inst_terms[0])
-            return naja.SNLEquipotential(occ)
+            return equipotential(occ)
         bit_terms = list(bit_obj.getBitTerms()) if hasattr(
             bit_obj, "getBitTerms") else []
         if bit_terms:
             if owner.is_top:
-                return naja.SNLEquipotential(bit_terms[0])
+                return equipotential(bit_terms[0])
             inst_term = owner.snl_instance.getInstTerm(bit_terms[0])
             occ = naja.SNLOccurrence(owner.snlpath.getHeadPath(), inst_term)
-            return naja.SNLEquipotential(occ)
+            return equipotential(occ)
     except Exception:
         return None
+    return None
+
+
+def equipotential_constant_value(eq) -> Optional[str]:
+    """Four-state constant value propagated across an equipotential."""
+    try:
+        for predicate, value in (
+            (eq.isConst0, "0"),
+            (eq.isConst1, "1"),
+            (eq.isConstX, "X"),
+            (eq.isConstZ, "Z"),
+        ):
+            if predicate():
+                return value
+    except Exception:
+        pass
     return None
 
 

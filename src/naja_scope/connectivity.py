@@ -2,9 +2,11 @@
 """Drivers/loads through equipotentials — the cross-hierarchy electrical edge
 no source-level tool has.
 
-Built on the raw SNLEquipotential: we classify inst-term occurrences by
-direction and leaf-ness ourselves (the classification the high-level wrapper
-used to provide), so naja-scope owns the connectivity semantics end to end.
+Built on the raw SNLEquipotential in TraverseAssigns mode: lowered assign
+instances are transparent, then we classify the remaining inst-term
+occurrences by direction and leaf-ness ourselves (the classification the
+high-level wrapper used to provide).  Literal constants retain their existing
+assign-driver representation.
 """
 
 from __future__ import annotations
@@ -64,6 +66,32 @@ def _top_entry(term) -> dict:
     return {"port": port, "dir": snl.direction_str(term.getDirection())}
 
 
+def _constant_assign_driver(resolved: Resolved, bit, queried_bit,
+                            value: str):
+    """Render the adjacent assign while the main equipotential omits glue.
+
+    TraverseAssigns propagates the constant type but intentionally leaves the
+    assign occurrence out of its endpoint set.  A Standard equipotential gives
+    us that occurrence so the public constant-driver shape stays compatible.
+    """
+    eq = snl.build_equipotential(
+        resolved.kind, resolved.owner, bit, traverse_assigns=False)
+    if eq is None:
+        return None
+    for occ in eq.getInstTermOccurrences():
+        inst_term = occ.getInstTerm()
+        inst = inst_term.getInstance()
+        if (not inst.getModel().isAssign()
+                or inst_term.getDirection() == snl.DIR_INPUT):
+            continue
+        ids = list(occ.getPath().getInstanceIDs())
+        ids.append(inst.getID())
+        entry = _leaf_entry(inst_term, ids, queried_bit)
+        entry["constant"] = value
+        return entry
+    return None
+
+
 def endpoints(resolved: Resolved, session, want: str, limit: int) -> dict:
     """want is 'drivers' or 'loads'. Walks all bits, dedupes, caps at limit."""
     bits = _bits_of(resolved)
@@ -105,6 +133,19 @@ def endpoints(resolved: Resolved, session, want: str, limit: int) -> dict:
                 truncated = True
                 break
             leaf.append(entry)
+        if want == "drivers" and not truncated:
+            value = snl.equipotential_constant_value(eq)
+            entry = (_constant_assign_driver(
+                resolved, bit, queried_bit, value) if value is not None
+                else None)
+            if entry is not None:
+                key = (entry["path"], entry["pin"])
+                if key not in seen:
+                    seen.add(key)
+                    if len(leaf) >= limit:
+                        truncated = True
+                    else:
+                        leaf.append(entry)
         for term in eq.getTerms():
             if term.getDirection() == top_exclude:
                 continue
