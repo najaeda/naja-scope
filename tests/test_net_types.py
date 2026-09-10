@@ -19,7 +19,7 @@ def net_types_session():
 
 
 def test_runtime_version_matches_release():
-    assert __version__ == "0.1.13"
+    assert __version__ == "0.1.14"
 
 
 @pytest.mark.parametrize(

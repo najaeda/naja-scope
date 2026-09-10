@@ -145,7 +145,8 @@ def test_server_tools_registered():
 
     import asyncio
     tools = asyncio.run(_list())
-    names = {t.name for t in tools}
+    tools_by_name = {t.name: t for t in tools}
+    names = set(tools_by_name)
     expected = {
         "status", "load_systemverilog", "load_verilog", "load_liberty",
         "load_primitives", "save_snapshot", "load_snapshot",
@@ -159,3 +160,30 @@ def test_server_tools_registered():
     # time, so its presence here just tracks the ambient env.
     assert ("query_python" in names) == bool(
         os.environ.get("NAJA_SCOPE_ENABLE_PYTHON"))
+
+    # Keep the MCP definitions useful to agents and machine-readable quality
+    # checkers: every argument explains its semantics, and every tool discloses
+    # whether it only reads or mutates the current session/filesystem.
+    for tool in tools:
+        assert tool.annotations is not None, tool.name
+        for parameter, schema in tool.inputSchema["properties"].items():
+            assert schema.get("description"), f"{tool.name}.{parameter}"
+
+    read_only = {
+        "status", "resolve", "find", "get_hierarchy", "get_drivers",
+        "get_loads", "trace_cone", "get_source", "get_module_card",
+        "get_stats", "get_intent",
+    }
+    for name in read_only:
+        assert tools_by_name[name].annotations.readOnlyHint is True
+
+    mutating = names - read_only
+    for name in mutating:
+        assert tools_by_name[name].annotations.readOnlyHint is False
+
+    destructive = {
+        "load_intent", "load_primitives", "query_python", "reset_universe",
+        "save_snapshot",
+    } & names
+    for name in destructive:
+        assert tools_by_name[name].annotations.destructiveHint is True

@@ -24,7 +24,7 @@ from najaeda import naja
 from .errors import SVInternalError, SVSyntaxError, SVUnsupportedError
 
 # najaeda>=0.7.9 introduced these typed exceptions; naja-scope currently
-# requires najaeda>=0.7.22.
+# requires najaeda>=0.7.23.
 # directly from loadSystemVerilog; anything loaded out-of-band below that floor
 # (e.g. via NAJAEDA_SRC pointing at an older checkout) only raises plain
 # RuntimeError. Detect once so classification degrades gracefully instead of

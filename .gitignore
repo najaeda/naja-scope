@@ -2,19 +2,18 @@
 __pycache__/
 *.pyc
 *.egg-info/
+*.swp
+graphify-out
+*.*~
 dist/
 build/
 .pytest_cache/
 .DS_Store
 naja_perf.log
-eval/results/
-eval/.scratch/
-eval/.cache/
+eval/
 .venv314/
 sv_constructor_perf.log
 naja_sv_diagnostics.log
 
 # Internal/dev material kept locally but never published.
 internal/
-*.swp
-graphify-out
