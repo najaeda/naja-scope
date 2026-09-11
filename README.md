@@ -66,7 +66,6 @@ answer directly:
 | Flattened register groups under `ex_stage_i` | **92**, in 4 turns | No answer at the turn limit |
 | Flattened register groups under `commit_stage_i` | **0**, in 3 turns | No answer at the turn limit |
 | Elaborated `hpdcache_mux` variants | **20**, in 3 turns | No answer at the turn limit |
-| Primitive driving divider `state_q` | **`naja_dffrn__w2`**, in 4 turns | Found the `always_ff`, but not the lowered primitive |
 
 Source search remains the right tool for local textual questions. naja-scope
 adds the elaborated hierarchy, connectivity, lowered primitives, and generated
