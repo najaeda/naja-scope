@@ -47,18 +47,34 @@ clear markers. Your context stays small; your answers stay accurate.
 
 ## Does it actually help?
 
-We ran a head-to-head on [CVA6](https://github.com/openhwgroup/cva6) (a
-production RISC-V core): the same 17 design questions, answered by Claude once
-with **only naja-scope** and once with **only `grep`/file reading** over the
-source tree.
+naja-scope helps most when the answer exists in the elaborated design rather
+than in any single source file. In an initial 17-question run on the
+`cv32a6_imac_sv32` configuration of
+[CVA6](https://github.com/openhwgroup/cva6), the same Claude Code agent was
+tested with naja-scope and with source-search tools alone.
 
-| Approach            | Correct answers | Conversation turns | Input tokens |
-| ------------------- | :-------------: | :----------------: | :----------: |
-| **naja-scope**      |    **17 / 17**  |       **77**       |   **182 k**  |
-| grep + read source  |     10 / 17     |         123        |     888 k    |
+| Agent setup | Provider and models | Initial automated score | Turns | Input processed | Output tokens |
+|---|---|---:|---:|---:|---:|
+| **Agent + naja-scope** | Anthropic Claude Code; `claude-sonnet-4-6` with `claude-haiku-4-5-20251001` helper | **17 / 17** | **77** | **1,058,556** | **19,520** |
+| Agent + grep/read source | Anthropic Claude Code; `claude-sonnet-4-6` with `claude-haiku-4-5-20251001` helper | 10 / 17 | 123 | 5,461,719 | 55,962 |
 
-More correct answers, fewer back-and-forth turns, and **~5× fewer tokens** — the
-agent stops scrolling through files and goes straight to the structural answer.
+The difference is clearest on structural questions that source search cannot
+answer directly:
+
+| CVA6 question | Agent + naja-scope | Agent + grep/read source |
+|---|---|---|
+| Flattened register groups under `ex_stage_i` | **92**, in 4 turns | No answer at the turn limit |
+| Flattened register groups under `commit_stage_i` | **0**, in 3 turns | No answer at the turn limit |
+| Elaborated `hpdcache_mux` variants | **20**, in 3 turns | No answer at the turn limit |
+| Primitive driving divider `state_q` | **`naja_dffrn__w2`**, in 4 turns | Found the `always_ff`, but not the lowered primitive |
+
+Source search remains the right tool for local textual questions. naja-scope
+adds the elaborated hierarchy, connectivity, lowered primitives, and generated
+or uniquified structures that are otherwise difficult to reconstruct.
+
+See the [benchmark methodology and multi-model runner](benchmarks/README.md)
+and [historical result record](benchmarks/historical-cva6-20260628.json) for
+configuration, scoring, token accounting, and reproducibility details.
 
 ---
 

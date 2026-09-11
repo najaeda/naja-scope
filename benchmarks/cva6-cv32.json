@@ -1,0 +1,148 @@
+{
+  "id": "cva6-cv32",
+  "label": "CVA6 cv32a6_imac_sv32 (RV32, no FPU, HPDCACHE)",
+  "suite_kind": "post-elaboration challenge set",
+  "configuration": "cv32a6_imac_sv32",
+  "expected_revision": "e6473dd61f43168c86260052aecbd8143f36a8b3",
+  "load": {
+    "flist": "${SOURCE_ROOT}/core/Flist.cva6",
+    "top": "cva6",
+    "intent": true
+  },
+  "environment": {
+    "CVA6_REPO_DIR": "${SOURCE_ROOT}",
+    "HPDCACHE_DIR": "${SOURCE_ROOT}/core/cache_subsystem/hpdcache",
+    "TARGET_CFG": "cv32a6_imac_sv32"
+  },
+  "source_guidance": [
+    "Treat TARGET_CFG=cv32a6_imac_sv32 as authoritative; do not answer for the repository's default RV64 configuration.",
+    "Start from core/Flist.cva6 and follow its ordered files, include paths, packages, defines, generate conditions, and parameter overrides.",
+    "Use repository-wide searches, read-only scripts, and shell pipelines whenever they improve the answer.",
+    "Distinguish source declarations from post-elaboration facts; say when source alone cannot prove a result."
+  ],
+  "excluded_artifacts": [
+    "Generated netlists or reports from another CVA6 configuration or revision.",
+    "oss_eda/cva6_naja.v unless accompanying metadata proves this exact revision and cv32a6_imac_sv32 configuration."
+  ],
+  "questions": [
+    {
+      "id": "cva6-top-submodules",
+      "category": "hierarchy",
+      "question": "Excluding assign glue and leaf primitives, which real submodule instances are instantiated directly inside the top cva6 module? Name the pipeline-stage submodules in particular.",
+      "golden": "The direct pipeline-stage submodules include i_frontend (frontend), id_stage_i (id_stage), issue_stage_i (issue_stage), ex_stage_i (ex_stage), and commit_stage_i (commit_stage).",
+      "check": {"type": "contains_all", "terms": ["frontend", "id_stage", "issue_stage", "ex_stage", "commit_stage"]}
+    },
+    {
+      "id": "cva6-commit-no-regs",
+      "category": "structure",
+      "question": "How many flip-flop/register-group sequential primitive instances does the commit_stage_i subtree contain when flattened? Count register groups, not bits.",
+      "golden": "0 sequential register groups; the flattened commit_stage_i subtree is combinational.",
+      "check": {"type": "primary_numeric", "value": 0}
+    },
+    {
+      "id": "cva6-ex-seq-count",
+      "category": "structure",
+      "question": "How many flip-flop/register-group sequential primitive instances are in the ex_stage_i subtree, flattened across its whole hierarchy? Count register groups, not bits.",
+      "golden": "92 sequential register groups in the flattened ex_stage_i subtree.",
+      "check": {"type": "primary_numeric", "value": 92, "reject_patterns": ["\\b358\\s+(?:sequential|register|flip-flop)"]}
+    },
+    {
+      "id": "cva6-core-seq-count",
+      "category": "structure",
+      "question": "How many flip-flop/register-group sequential primitive instances does the entire flattened cva6 core contain? Count register groups, not individual bits.",
+      "golden": "808 sequential register groups across the whole flattened core.",
+      "check": {"type": "primary_numeric", "value": 808, "reject_patterns": ["\\b573\\s+(?:sequential|register|flip-flop)"]}
+    },
+    {
+      "id": "cva6-uniquify-mux",
+      "category": "structure",
+      "question": "After elaboration, how many distinct module variants of hpdcache_mux exist, counting the base module and every uniquified specialization?",
+      "golden": "20 distinct variants: the base hpdcache_mux plus hpdcache_mux__elab1 through hpdcache_mux__elab19.",
+      "check": {"type": "primary_numeric", "value": 20}
+    },
+    {
+      "id": "cva6-noc-driver",
+      "category": "connectivity",
+      "question": "Which submodule of the core ultimately drives the top-level output port noc_req_o? Give the most specific instance or module the available evidence supports.",
+      "golden": "The HPDCACHE AXI write adapter/arbiter drives noc_req_o: i_hpdcache_mem_to_axi_write in the cache subsystem.",
+      "check": {"type": "regex_all", "patterns": ["hpdcache", "(?:axi|adapter|arbiter)"]}
+    },
+    {
+      "id": "cva6-div-state-driver",
+      "category": "connectivity",
+      "question": "Which primitive directly drives cva6.ex_stage_i.i_mult.i_div.state_q, and in which SystemVerilog source file is that register defined?",
+      "golden": "The direct primitive is naja_dffrn__w2 (instance state_q_dffrn__w2); the register is defined in serdiv.sv.",
+      "check": {"type": "regex_all", "patterns": ["dffrn(?:__w2|.*w2)", "serdiv\\.sv"]}
+    },
+    {
+      "id": "cva6-div-state-width",
+      "category": "parameters",
+      "question": "What is the bit width of cva6.ex_stage_i.i_mult.i_div.state_q?",
+      "golden": "2 bits wide.",
+      "check": {"type": "primary_numeric", "value": 2}
+    },
+    {
+      "id": "cva6-ptw-source",
+      "category": "source",
+      "question": "Which source file and line range contains the always_ff block that updates the page-table-walker FSM state register in i_ptw? Answer as file:line-range.",
+      "golden": "core/cva6_mmu/cva6_ptw.sv:659-699.",
+      "check": {"type": "regex_all", "patterns": ["cva6_ptw\\.sv:6[0-9]{2}(?:-6[0-9]{2})?"]}
+    },
+    {
+      "id": "cva6-reset-polarity",
+      "category": "intent",
+      "question": "Is the reset of cva6_ptw active-high or active-low, and what is the reset signal called?",
+      "golden": "Active-low reset, named rst_ni.",
+      "check": {"type": "regex_all", "patterns": ["active[- ]low", "rst_ni"]}
+    },
+    {
+      "id": "cva6-ptw-fsm-states",
+      "category": "intent",
+      "question": "The cva6_ptw FSM state register is how many bits wide, and what is its reset/initial state called?",
+      "golden": "It is 3 bits wide and resets to IDLE.",
+      "check": {"type": "regex_all", "patterns": ["\\b3\\s*[- ]?bits?", "\\bIDLE\\b"]}
+    },
+    {
+      "id": "cva6-privlvl-enum",
+      "category": "intent",
+      "question": "The register cva6.csr_regfile_i.priv_lvl_q is enum-typed. What is its type called, and what symbolic enum members can it take?",
+      "golden": "The type is riscv::priv_lvl_t, with members PRIV_LVL_M, PRIV_LVL_HS, PRIV_LVL_S, and PRIV_LVL_U.",
+      "check": {"type": "contains_all", "terms": ["priv_lvl_t", "priv_lvl_m", "priv_lvl_hs", "priv_lvl_s", "priv_lvl_u"]}
+    },
+    {
+      "id": "cva6-plen-param",
+      "category": "intent",
+      "question": "What is riscv::PLEN, what value does it take in this exact configuration, and what does that value depend on?",
+      "golden": "PLEN is the physical-address width. It is (XLEN == 32) ? 34 : 56, so this RV32 configuration resolves it to 34.",
+      "check": {"type": "regex_all", "patterns": ["(?:(?:(?:this|current|exact)\\s+(?:RV32\\s+)?config(?:uration)?|RV32|XLEN\\s*=+\\s*32)\\D{0,40}\\b34\\b|\\b34\\b\\D{0,40}(?:(?:this|current|exact)\\s+(?:RV32\\s+)?config(?:uration)?|RV32|XLEN\\s*=+\\s*32))", "XLEN", "physical[- ]address"], "reject_patterns": ["(?:in|for)\\s+(?:this|the\\s+current|the\\s+exact)\\s+config(?:uration)?[\\s\\S]{0,160}(?:PLEN\\s*=\\s*56|equals?\\D{0,12}56)", "standard\\s+(?:64[- ]bit|RV64)[\\s\\S]{0,160}(?:PLEN\\s*=\\s*56|equals?\\D{0,12}56)"]}
+    },
+    {
+      "id": "cva6-csr-counter-width",
+      "category": "intent",
+      "question": "What value does SELECT_COUNTER_WIDTH inside cva6.csr_regfile_i have in this exact configuration, and what determines it?",
+      "golden": "SELECT_COUNTER_WIDTH is CVA6Cfg.IS_XLEN64 ? 6 : 5, so it resolves to 5 for this XLEN=32 configuration.",
+      "check": {"type": "regex_all", "patterns": ["(?:(?:(?:this|current|exact)\\s+(?:XLEN=32\\s+)?config(?:uration)?|RV32|XLEN\\s*=+\\s*32)\\D{0,40}\\b5\\b|\\b5\\b\\D{0,40}(?:(?:this|current|exact)\\s+(?:XLEN=32\\s+)?config(?:uration)?|RV32|XLEN\\s*=+\\s*32))", "(?:IS_XLEN64|XLEN)"], "reject_patterns": ["(?:in|for)\\s+(?:this|the\\s+current|the\\s+exact)\\s+config(?:uration)?[\\s\\S]{0,160}(?:SELECT_COUNTER_WIDTH\\s*=\\s*6|equals?\\D{0,12}6)", "standard\\s+(?:64[- ]bit|RV64)[\\s\\S]{0,160}(?:SELECT_COUNTER_WIDTH\\s*=\\s*6|equals?\\D{0,12}6)", "SELECT_COUNTER_WIDTH\\s*=\\s*6\\D{0,48}standard\\s+(?:64[- ]bit|RV64)"]}
+    },
+    {
+      "id": "cva6-loadbuf-id-bits",
+      "category": "intent",
+      "question": "What expression defines REQ_ID_BITS in cva6.ex_stage_i.lsu_i.i_load_unit, and what does it derive the width from?",
+      "golden": "REQ_ID_BITS = (CVA6Cfg.NrLoadBufEntries > 1) ? $clog2(CVA6Cfg.NrLoadBufEntries) : 1; it derives the width from NrLoadBufEntries.",
+      "check": {"type": "contains_all", "terms": ["clog2", "nrloadbufentries"]}
+    },
+    {
+      "id": "cva6-div-cone-crosshier",
+      "category": "connectivity",
+      "question": "Trace the fan-in cone, stopping at flip-flops, of cva6.ex_stage_i.i_mult.i_div.state_d. Does it depend on register state outside EX? If so, name at least one such register or module.",
+      "golden": "Yes. The flop frontier crosses outside EX into csr_regfile_i and issue_stage_i.i_scoreboard state.",
+      "check": {"type": "regex_all", "patterns": ["\\byes\\b", "(?:csr|scoreboard|issue_stage)"]}
+    },
+    {
+      "id": "cva6-serdiv-adders",
+      "category": "structure",
+      "question": "How many naja_fa full-adder primitive instances does the elaborated serial-divider module serdiv contain?",
+      "golden": "108 naja_fa full-adder primitive instances in serdiv.",
+      "check": {"type": "primary_numeric", "value": 108, "reject_patterns": ["\\b206\\s+(?:naja_fa|full[- ]adder)"]}
+    }
+  ]
+}
