@@ -1,0 +1,69 @@
+{
+  "status": "historical preliminary run; not produced by the fair harness",
+  "recorded_at": "2026-06-28",
+  "design_label": "CVA6 cv32a6_imac_sv32 (no FPU)",
+  "source_revision": null,
+  "harness_revision": null,
+  "provider": "anthropic",
+  "runtime": "Claude Code",
+  "runtime_version": null,
+  "requested_model": "claude-sonnet-4-6",
+  "reasoning_effort": null,
+  "repetitions": 1,
+  "questions": 17,
+  "arms": {
+    "scope": {
+      "old_automatic_pass": 17,
+      "turns": 77,
+      "models": {
+        "claude-sonnet-4-6": {
+          "ordinary_input_tokens": 182,
+          "cache_creation_input_tokens": 224666,
+          "cache_read_input_tokens": 824529,
+          "output_tokens": 19172
+        },
+        "claude-haiku-4-5-20251001": {
+          "ordinary_input_tokens": 9179,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "output_tokens": 348
+        }
+      },
+      "all_model_input_processed": 1058556,
+      "all_model_output_tokens": 19520
+    },
+    "source": {
+      "old_automatic_pass": 10,
+      "turns": 123,
+      "models": {
+        "claude-sonnet-4-6": {
+          "ordinary_input_tokens": 888,
+          "cache_creation_input_tokens": 304524,
+          "cache_read_input_tokens": 2585998,
+          "output_tokens": 38594
+        },
+        "claude-haiku-4-5-20251001": {
+          "ordinary_input_tokens": 9277,
+          "cache_creation_input_tokens": 71858,
+          "cache_read_input_tokens": 2489174,
+          "output_tokens": 17368
+        }
+      },
+      "all_model_input_processed": 5461719,
+      "all_model_output_tokens": 55962
+    }
+  },
+  "strict_rescore_of_archived_answers": {
+    "scope": {"pass": 17, "fail": 0, "review": 0},
+    "source": {"pass": 8, "fail": 5, "review": 4},
+    "note": "This diagnoses old scoring only. It is not a corrected fair result because the original prompts and environments cannot be changed after the run."
+  },
+  "known_limitations": [
+    "The source arm did not receive the explicit cv32a6_imac_sv32 environment that loaded the scope arm.",
+    "The source arm had a 12-tool-turn limit.",
+    "The question set was intentionally skewed toward post-elaboration facts where textual search is weak.",
+    "The exact CVA6 source revision, harness revision, Claude Code version, and reasoning effort were not recorded.",
+    "The old scorer accepted RV64 PLEN and SELECT_COUNTER_WIDTH answers because they also mentioned the RV32 alternatives.",
+    "The old scorer accepted a configuration-generic noc_req_o answer and rejected a correct multiline REQ_ID_BITS answer."
+  ]
+}
