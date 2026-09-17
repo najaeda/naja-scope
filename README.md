@@ -204,6 +204,16 @@ need it and trust every client that can reach the endpoint.
 
 ---
 
+## Inspect An Existing Python Session
+
+Naja-Scope MCP can attach to designs already loaded in a Python or Jupyter
+process. Select each design by its native database, library and design IDs;
+switch between references without dumping or reloading. The bridge shares the
+owner's editing/verification lock and only exposes read-only inspection.
+
+See the [live-session binding guide](examples/live-session.md) for owner setup,
+MCP calls, design selection and lifecycle rules.
+
 ## Requirements
 
 - Python 3.10+
