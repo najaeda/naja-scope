@@ -8,6 +8,8 @@ the tool schemas agents pay tokens for on every session."""
 from __future__ import annotations
 
 import functools
+import asyncio
+import inspect
 import os
 import sys
 from typing import Annotated, Any, Callable, Dict, List, Literal, Optional
@@ -23,6 +25,11 @@ from pydantic import Field
 
 from . import api
 from .errors import ScopeError
+from .binding import BINDING
+from .design_reference import DesignReference
+
+DesignSelector = Annotated[Optional[DesignReference], Field(
+    description="Attached-session native design reference; overrides set_session_design for this query only. Omit in standalone mode.")]
 
 mcp = FastMCP("naja-scope")
 
@@ -68,14 +75,19 @@ ARBITRARY_PYTHON = ToolAnnotations(
 )
 
 
-def _tool(*, annotations: ToolAnnotations) -> Callable:
+def _tool(*, annotations: ToolAnnotations, binding_control: bool = False) -> Callable:
     """Register fn as an MCP tool; ScopeErrors become structured responses."""
 
     def decorator(fn: Callable) -> Callable:
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs) -> Dict[str, Any]:
+        async def wrapper(*args, **kwargs) -> Dict[str, Any]:
             try:
-                return fn(*args, **kwargs)
+                if binding_control:
+                    return await asyncio.to_thread(fn, *args, **kwargs)
+                arguments = dict(inspect.signature(fn).bind(*args, **kwargs).arguments)
+                design = arguments.pop("design", None)
+                return await asyncio.to_thread(BINDING.invoke, fn.__name__, arguments,
+                                               lambda: fn(**arguments), design)
             except ScopeError as e:
                 return e.to_dict()
 
@@ -84,8 +96,43 @@ def _tool(*, annotations: ToolAnnotations) -> Callable:
     return decorator
 
 
+@_tool(annotations=SESSION_MUTATION, binding_control=True)
+def attach_session(
+    connection_file: Annotated[str, Field(description="Private connection JSON created by SessionBridge in the design-owning Python process.")],
+    design: Annotated[Optional[DesignReference], Field(description="Native design reference to select; omit to discover designs before choosing one.")] = None,
+    timeout_seconds: Annotated[float, Field(description="Query timeout in seconds, greater than zero and at most 300.", gt=0, le=300)] = 30,
+) -> dict:
+    """Bind existing read-only MCP tools to a caller's live design without
+    loading, copying or dumping it. Mutating tools are blocked while attached.
+    The connection credential must remain private. Timeout does not kill the owner."""
+    return BINDING.attach(connection_file, design, timeout_seconds)
+
+
+@_tool(annotations=SESSION_MUTATION, binding_control=True)
+def set_session_design(
+    design: Annotated[DesignReference, Field(description="Native session, database, library and design IDs from the attached owner.")],
+) -> dict:
+    """Select a native live design for subsequent queries, without
+    changing the owner's selected top outside those queries."""
+    return BINDING.select(design)
+
+
+@_tool(annotations=READ_ONLY, binding_control=True)
+def get_session_binding() -> dict:
+    """Report the attached owner, available designs and selected design.
+    Returns attached=false in the unchanged standalone/local mode."""
+    return BINDING.inspect()
+
+
+@_tool(annotations=SESSION_MUTATION, binding_control=True)
+def detach_session() -> dict:
+    """Stop using the live attachment and resume local tools. Never destroys,
+    resets or closes the caller's designs or bridge."""
+    return BINDING.detach()
+
+
 @_tool(annotations=READ_ONLY)
-def status() -> dict:
+def status(*, design: DesignSelector = None) -> dict:
     """Inspect the current in-memory session without changing it. Use this
     before design queries to confirm a design is loaded and whether get_intent
     is live (`intent_loaded`) or can be reloaded (`intent_loadable`). Returns
@@ -255,6 +302,7 @@ def resolve(
         Optional[int],
         Field(description="Maximum matches to return; defaults to 20 and is capped at 200."),
     ] = None,
+    *, design: DesignSelector = None,
 ) -> dict:
     """Resolve a known hierarchical object path to instance, term, or net
     descriptors with source references. The final segment accepts a glob and
@@ -283,6 +331,7 @@ def find(
         Field(description="Opaque next_cursor from the previous response; "
                           "omit for the first page."),
     ] = None,
+    *, design: DesignSelector = None,
 ) -> dict:
     """Search case-sensitive object names across the loaded design with a glob.
     Use this when an exact path is unknown; use resolve once a path is known or
@@ -310,6 +359,7 @@ def get_hierarchy(
         Optional[str],
         Field(description="Opaque root-level next_cursor from a previous response."),
     ] = None,
+    *, design: DesignSelector = None,
 ) -> dict:
     """Browse the instance tree below `path` (or the top instance). Use this
     for structural children; use find for design-wide name search or get_stats
@@ -331,6 +381,7 @@ def get_drivers(
         Optional[int],
         Field(description="Maximum endpoint entries; defaults to 50 and is capped at 200."),
     ] = None,
+    *, design: DesignSelector = None,
 ) -> dict:
     """List the immediate upstream endpoints that drive a term or net across
     hierarchy. Use this for direct sources; use get_loads for downstream readers
@@ -354,6 +405,7 @@ def get_loads(
         Optional[int],
         Field(description="Maximum endpoint entries; defaults to 50 and is capped at 200."),
     ] = None,
+    *, design: DesignSelector = None,
 ) -> dict:
     """List the immediate downstream endpoints that consume a term or net
     across hierarchy. Use this for direct readers; use get_drivers for upstream
@@ -380,6 +432,7 @@ def trace_cone(
         int,
         Field(description="Maximum listed endpoints per frontier kind; clamped to 1..200."),
     ] = 50,
+    *, design: DesignSelector = None,
 ) -> dict:
     """Trace the combinational fanin/fanout cone of a term/net via naja's
     LogicCone. Use this for transitive logic reachability; use get_drivers or
@@ -405,6 +458,7 @@ def get_source(
         int,
         Field(description="Extra lines before and after the source range; clamped to 0..20."),
     ] = 3,
+    *, design: DesignSelector = None,
 ) -> dict:
     """Read the bounded SystemVerilog source excerpt that produced an object
     (for example, an FF instance maps to its `always_ff` block). Use after
@@ -421,6 +475,7 @@ def get_module_card(
         str,
         Field(description="Elaborated module/model name, not an instance path."),
     ],
+    *, design: DesignSelector = None,
 ) -> dict:
     """Deterministic module summary: ports, instance counts by model,
     sequential count, source ref, plus clock/reset candidates — a name-based
@@ -444,6 +499,7 @@ def get_stats(
         Field(description="Opaque next_cursor from the previous response; "
                           "omit for the first page."),
     ] = None,
+    *, design: DesignSelector = None,
 ) -> dict:
     """Summarize instance population by model below `path` or the top design.
     Use this for aggregate leaf/sequential/model counts; use get_hierarchy for
@@ -464,6 +520,7 @@ def get_intent(
         Literal["auto", "type", "fsm_states", "parameters"],
         Field(description="Intent fact to retrieve; auto selects from the reference."),
     ] = "auto",
+    *, design: DesignSelector = None,
 ) -> dict:
     """Retrieve source-level intent that netlist lowering erases (warm-only).
     Use when the answer is in the SystemVerilog *type/declaration*, not the

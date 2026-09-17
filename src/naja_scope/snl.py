@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import difflib
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Iterator, List, Optional, Tuple
 
@@ -50,21 +52,39 @@ _BUS_TYPES = {"SNLBusTerm", "SNLBusNet"}
 
 # -- universe / designs ------------------------------------------------------
 
+_inspection_top = ContextVar("naja_scope_inspection_top", default=None)
+
+
+@contextmanager
+def inspection_design(design):
+    """Scope queries to an explicit root without changing native DB top state."""
+    token = _inspection_top.set(design)
+    try:
+        yield
+    finally:
+        _inspection_top.reset(token)
+
+
 def universe():
     return naja.NLUniverse.get()
 
 
 def has_top() -> bool:
-    u = universe()
-    return u is not None and u.getTopDesign() is not None
+    return top_design() is not None
 
 
 def top_design():
+    selected = _inspection_top.get()
+    if selected is not None:
+        return selected
     u = universe()
     return u.getTopDesign() if u is not None else None
 
 
 def top_db():
+    selected = _inspection_top.get()
+    if selected is not None:
+        return selected.getDB()
     u = universe()
     return u.getTopDB() if u is not None else None
 
@@ -86,10 +106,17 @@ def design_names(include_primitives: bool = False) -> List[str]:
 
 
 def find_design(name: str):
-    for design in iter_designs(include_primitives=True):
-        if design.getName() == name:
-            return design
-    return None
+    # An explicitly selected native top wins over same-named models in other
+    # libraries. Never silently choose among remaining ambiguous models.
+    top = top_design()
+    if top is not None and top.getName() == name:
+        return top
+    matches = [design for design in iter_designs(include_primitives=True)
+               if design.getName() == name]
+    if len(matches) > 1:
+        from .errors import ScopeError
+        raise ScopeError(f"Ambiguous module name '{name}'; select its native design reference first.")
+    return matches[0] if matches else None
 
 
 def suggest_designs(name: str, n: int = 8) -> List[str]:

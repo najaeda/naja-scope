@@ -154,6 +154,7 @@ def test_server_tools_registered():
         "get_drivers", "get_loads", "trace_cone", "get_source",
         "get_module_card", "get_stats",
         "get_intent", "load_intent",
+        "attach_session", "set_session_design", "get_session_binding", "detach_session",
     }
     assert expected <= names, expected - names
     # query_python is opt-in (NAJA_SCOPE_ENABLE_PYTHON) and registered at import
@@ -172,7 +173,7 @@ def test_server_tools_registered():
     read_only = {
         "status", "resolve", "find", "get_hierarchy", "get_drivers",
         "get_loads", "trace_cone", "get_source", "get_module_card",
-        "get_stats", "get_intent",
+        "get_stats", "get_intent", "get_session_binding",
     }
     for name in read_only:
         assert tools_by_name[name].annotations.readOnlyHint is True

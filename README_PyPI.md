@@ -163,6 +163,13 @@ Once a design is loaded, your assistant can:
 
 ---
 
+## Inspect An Existing Python Session
+
+The MCP server can attach to a live Python/Jupyter process and inspect designs
+by native Naja database, library and design IDs, without reloading. The owner
+provides a shared lock; attached tools are read-only. See the
+[live-session binding guide](examples/live-session.md).
+
 ## Requirements
 
 - Python 3.10+
